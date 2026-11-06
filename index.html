@@ -345,6 +345,9 @@ html[data-theme="light"] .hud-chip{background:rgba(255,255,255,.82);border-color
 }
 .stage-progress.on{opacity:1}
 .stage-progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--violet));transition:width .28s var(--ease);box-shadow:0 0 12px rgba(var(--accent-rgb),.9)}
+.stage-progress.indeterminate i{width:38%!important;transition:none;animation:sweep 1.1s ease-in-out infinite}
+@keyframes sweep{0%{margin-left:-40%}100%{margin-left:102%}}
+.pop-run.arm{background:linear-gradient(135deg,#ff9f43,#ff6b6b);box-shadow:0 8px 24px -10px rgba(255,107,107,.8)}
 
 .empty-stage{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;color:var(--text-faint);text-align:center;padding:24px;z-index:1}
 .empty-stage svg{width:40px;height:40px;opacity:.42}
@@ -505,6 +508,15 @@ select:focus,input[type=text]:focus,input[type=number]:focus{border-color:rgba(v
   font-size:10.5px;line-height:1.5;color:var(--warn);background:rgba(255,184,77,.08);
   border:1px solid rgba(255,184,77,.26);border-radius:8px;padding:6px 8px;
 }
+
+/* 元数据拖放区 */
+.meta-drop{
+  margin-top:7px;padding:12px 10px;border:1px dashed var(--line-strong);border-radius:var(--r-md);
+  text-align:center;font-size:10.5px;color:var(--text-faint);line-height:1.5;
+  transition:.18s var(--ease);cursor:pointer;
+}
+.meta-drop:hover{border-color:rgba(var(--accent-rgb),.6);color:var(--text-dim)}
+.meta-drop.over{border-color:var(--accent);background:rgba(var(--accent-rgb),.1);color:var(--text)}
 
 /* 图生图面板 */
 #i2iPanel{display:none;flex-direction:column;gap:9px}
@@ -1001,6 +1013,13 @@ html.no-anim *{transition:none!important;animation:none!important}
           <h4 class="sec-title">后端状态</h4>
           <div id="statusBox" class="empty-line">—</div>
         </section>
+
+        <section>
+          <h4 class="sec-title">元数据<span class="info" data-tip="导入 .json 或 .txt 元数据文件，自动回填提示词、反向提示词、种子、步数、CFG、采样器与尺寸。也可以把文件直接拖到页面上。">i</span></h4>
+          <button class="btn" id="btnImportMeta" style="width:100%">导入元数据</button>
+          <div class="meta-drop" id="metaDrop">拖入 .json / .txt 文件</div>
+          <input type="file" id="fileMeta" accept=".json,.txt,application/json,text/plain" style="display:none">
+        </section>
       </div>
     </aside>
   </main>
@@ -1434,11 +1453,14 @@ function buildBaseName(meta){
   return name || `LD_${map.date}_${map.time}`;
 }
 
-/** 组装提示词与参数文本 */
-function buildMetaText(meta){
+/** 元数据唯一数据源：JSON 与 TXT 都由它渲染，字段、顺序、取值完全一致 */
+const META_FIELDS = ['prompt', 'negative_prompt', 'seed', 'steps', 'cfg', 'scheduler', 'model', 'width', 'height', 'created', 'generator'];
+
+function buildMetaObject(meta){
+  meta = meta || {};
   const p = $('#prompt') ? $('#prompt').value.trim() : '';
   const n = $('#negPrompt') ? $('#negPrompt').value.trim() : '';
-  const info = {
+  return {
     prompt: meta.prompt != null ? meta.prompt : p,
     negative_prompt: meta.negative != null ? meta.negative : n,
     seed: meta.seed != null ? meta.seed : S.lastSeed,
@@ -1451,26 +1473,31 @@ function buildMetaText(meta){
     created: new Date().toISOString(),
     generator: 'Localdream-Web-UI-Studio'
   };
-  if (CFG.metaFmt === 'txt'){
-    return Object.entries(info).map(([k, v]) => `${k}: ${v}`).join('\n') + '\n';
-  }
-  return JSON.stringify(info, null, 2) + '\n';
 }
 
-async function autoSaveImage(blob, meta){
-  if (!CFG.autoSave || !saveDirHandle || !blob) return;
+function buildMetaText(meta){
+  const o = buildMetaObject(meta);
+  if (CFG.metaFmt === 'txt'){
+    return META_FIELDS.map(k => `${k}: ${o[k]}`).join('\n') + '\n';
+  }
+  return JSON.stringify(o, null, 2) + '\n';
+}
+
+async function autoSaveImage(blob, meta, opt){
+  opt = opt || {};
+  if (!CFG.autoSave || !saveDirHandle || !blob) return false;
   if (!await ensureDirPermission()){
     toast('自动保存失败：目录权限已失效，请在设置里重新授权', 'warn');
-    return;
+    return false;
   }
-  const base = buildBaseName(meta || {});
+  const base = buildBaseName(meta || {}) + (opt.suffix || '');
   try{
     const fh = await saveDirHandle.getFileHandle(base + '.png', { create: true });
     const w = await fh.createWritable();
     await w.write(blob);
     await w.close();
     let extra = '';
-    if (CFG.saveMeta){
+    if (CFG.saveMeta && !opt.noMeta){
       const ext = CFG.metaFmt === 'txt' ? 'txt' : 'json';
       const mh = await saveDirHandle.getFileHandle(`${base}.${ext}`, { create: true });
       const mw = await mh.createWritable();
@@ -1479,8 +1506,10 @@ async function autoSaveImage(blob, meta){
       extra = ' + ' + ext;
     }
     toast('已保存 ' + base + '.png' + extra, 'ok');
+    return true;
   }catch(e){
     toast('自动保存失败：' + (e.message || e.name), 'err');
+    return false;
   }
 }
 
@@ -2926,7 +2955,14 @@ function scheduleTokenize(){
 }
 function setTokenChip(count, max, overflow){
   const el = $('#tokenChip');
-  if (count == null){ el.textContent = '— tokens'; return; }
+  if (count == null){ el.textContent = '— tokens'; el.classList.remove('over'); return; }
+  // 部分后端（DiT / Anima）不按 CLIP 计数，max_length 返回 0，表示不限制长度
+  if (!max || max <= 0){
+    el.textContent = `${count} tokens`;
+    el.classList.remove('over');
+    el.title = '当前模型不限制提示词长度';
+    return;
+  }
   el.textContent = `${count} / ${max} tokens`;
   el.classList.toggle('over', count > max || overflow >= 0);
   el.title = (count > max || overflow >= 0) ? '超出 CLIP 77 token 上限，提示词会被截断' : '在 CLIP 77 token 上限内';
@@ -3002,6 +3038,101 @@ function bindCopyables(root){
       copyText(el.dataset.copy, el.dataset.copyLabel || '已复制');
     });
   });
+}
+
+/* ═════════════ 元数据导入 ═════════════ */
+/** 同时兼容 JSON 与 key: value 两种写法 */
+function parseMetaText(text){
+  const t = String(text || '').trim();
+  if (!t) return null;
+  if (t.startsWith('{')){
+    try{
+      const o = JSON.parse(t);
+      return (o && typeof o === 'object') ? o : null;
+    }catch{ return null; }
+  }
+  const o = {};
+  t.split(/\r?\n/).forEach(line => {
+    const m = /^([A-Za-z_][A-Za-z0-9_]*)\s*:\s?([\s\S]*)$/.exec(line.trim());
+    if (m) o[m[1]] = m[2].trim();
+  });
+  return Object.keys(o).length ? o : null;
+}
+
+function applySizeFromMeta(w, h){
+  if (!S.model || !w || !h) return;
+  if (S.model.is_sdxl){
+    const ar = w / h;
+    const list = ['1:1', '4:3', '3:4', '16:9', '9:16', '3:2', '2:3'];
+    let best = '1:1', bd = Infinity;
+    list.forEach(a => {
+      const [x, y] = a.split(':').map(Number);
+      const d = Math.abs(x / y - ar);
+      if (d < bd){ bd = d; best = a; }
+    });
+    S.aspect = best;
+    renderSizeControls();
+    updateHudModel();
+    return;
+  }
+  S.useCustomSize = true;
+  S.w = clamp(Math.round(w), 64, 2048);
+  S.h = clamp(Math.round(h), 64, 2048);
+  renderSizeControls();
+  updateHudModel();
+}
+
+function applyMetaObject(o){
+  if (!o) return false;
+  const num = v => { const n = Number(v); return isFinite(n) ? n : null; };
+
+  if (o.prompt != null) $('#prompt').value = String(o.prompt);
+  if (o.negative_prompt != null) $('#negPrompt').value = String(o.negative_prompt);
+
+  if (o.seed != null && String(o.seed) !== ''){
+    const sd = num(o.seed);
+    $('#seedInput').value = sd != null ? String(Math.abs(Math.trunc(sd))) : '';
+  }
+  const st = num(o.steps);
+  if (st != null){
+    $('#steps').value = clamp(Math.round(st), 1, 60);
+    $('#steps').dispatchEvent(new Event('input'));
+  }
+  const cf = num(o.cfg);
+  if (cf != null){
+    $('#cfg').value = clamp(cf, 0, 20);
+    $('#cfg').dispatchEvent(new Event('input'));
+  }
+  if (o.scheduler){
+    const opt = $('#scheduler').querySelector('option[value="' + String(o.scheduler) + '"]');
+    if (opt) $('#scheduler').value = String(o.scheduler);
+  }
+  const w = num(o.width), h = num(o.height);
+  if (w && h) applySizeFromMeta(w, h);
+
+  if (o.model && S.model && S.model.id !== String(o.model)){
+    toast(`该元数据来自 ${o.model}，当前模型为 ${S.model.id}`, 'warn');
+  }
+  scheduleTokenize();
+  log('info', '导入元数据', { model: o.model || '', seed: o.seed, size: `${o.width || '?'}x${o.height || '?'}` });
+  return true;
+}
+
+async function importMetaFile(file){
+  if (!file) return;
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  if (!['json', 'txt'].includes(ext)){
+    toast('只支持 .json 或 .txt 元数据文件', 'warn');
+    return;
+  }
+  try{
+    const text = await file.text();
+    const o = parseMetaText(text);
+    if (!o || !applyMetaObject(o)) throw new Error('内容为空或格式不正确');
+    toast('已导入 ' + file.name, 'ok');
+  }catch(e){
+    toast('导入失败：' + (e.message || e.name), 'err');
+  }
 }
 
 /* ═════════════ 滑杆数值可编辑 ═════════════ */
@@ -3157,7 +3288,12 @@ async function tokenizeText(text){
 
 function setPmChip(el, r){
   if (!el) return;
-  if (!r){ el.textContent = '— / 77'; el.classList.remove('over'); return; }
+  if (!r){ el.textContent = '—'; el.classList.remove('over'); return; }
+  if (!r.max || r.max <= 0){
+    el.textContent = `${r.count} tokens`;
+    el.classList.remove('over');
+    return;
+  }
   el.textContent = `${r.count} / ${r.max}`;
   el.classList.toggle('over', r.count > r.max);
 }
@@ -3219,7 +3355,30 @@ function canvasToInitImage(){
 }
 
 /* ═════════════ 图像超分 ═════════════ */
-const UP = { kind: 'anime', scale: 4, running: false };
+const UP = { kind: 'anime', scale: 4, running: false, confirmPending: false, pendingSize: '', confirmTimer: null };
+let upTimer = null;
+
+function startUpProgress(tw, th){
+  const prog = $('#stageProg'), bar = $('#stageProgBar'), hud = $('#hudStep');
+  if (prog) prog.classList.add('on', 'indeterminate');
+  if (bar) bar.style.width = '';
+  if (hud){ hud.style.display = ''; hud.textContent = '超分中 0.0s'; }
+  const t0 = performance.now();
+  clearInterval(upTimer);
+  upTimer = setInterval(() => {
+    if (hud) hud.textContent = `超分中 ${((performance.now() - t0) / 1000).toFixed(1)}s`;
+  }, 200);
+  toast(`开始超分 → ${tw}×${th}`, 'info');
+}
+
+function stopUpProgress(){
+  clearInterval(upTimer);
+  upTimer = null;
+  const prog = $('#stageProg'), bar = $('#stageProgBar'), hud = $('#hudStep');
+  if (prog) prog.classList.remove('indeterminate', 'on');
+  if (bar) bar.style.width = '0%';
+  if (hud) hud.style.display = 'none';
+}
 
 function pickUpscaler(kind){
   const list = (S.upscalers || []).filter(u => u && u.path);
@@ -3283,7 +3442,13 @@ function renderUpChips(){
     }
   }
   const run = $('#btnRunUpscale');
-  if (run) run.disabled = !up || UP.running || CFG.mode === 'demo';
+  if (run){
+    run.disabled = !up || UP.running || CFG.mode === 'demo';
+    run.classList.toggle('arm', !!UP.confirmPending);
+    if (!UP.running){
+      run.textContent = UP.confirmPending ? `再次点击确认 ${UP.pendingSize}` : '开始超分';
+    }
+  }
 }
 
 function setUpscaleBusy(on){
@@ -3303,6 +3468,24 @@ async function runUpscale(){
   if (!up){ toast('设备上没有这类放大器', 'err'); return; }
 
   const w = stage.width, h = stage.height;
+  const tw = Math.round(w * UP.scale), th = Math.round(h * UP.scale);
+  const outPx = tw * th;
+  // 画布超过约 8MP 或单边超过 4096 时，内存与耗时都会陡增，先确认
+  const heavy = outPx > 8 * 1024 * 1024 || tw > 4096 || th > 4096;
+  if (heavy && !UP.confirmPending){
+    UP.confirmPending = true;
+    UP.pendingSize = `${tw}×${th}`;
+    renderUpChips();
+    toast(`输出 ${tw}×${th}，约占用 ${Math.round(outPx * 4 / 1048576)} MB 内存，可能失败或卡顿；再点一次确认`, 'warn');
+    clearTimeout(UP.confirmTimer);
+    UP.confirmTimer = setTimeout(() => { UP.confirmPending = false; renderUpChips(); }, 7000);
+    return;
+  }
+  UP.confirmPending = false;
+  UP.pendingSize = '';
+  clearTimeout(UP.confirmTimer);
+  renderUpChips();
+
   const src = sctx.getImageData(0, 0, w, h).data;
   const rgb = new Uint8Array(w * h * 3);
   for (let i = 0, j = 0; i < src.length; i += 4, j += 3){
@@ -3312,6 +3495,7 @@ async function runUpscale(){
   UP.running = true;
   setUpscaleBusy(true);
   $('#upPop').classList.remove('on');
+  startUpProgress(tw, th);
   log('info', '超分开始', { w, h, kind: UP.kind, scale: UP.scale, upscaler: up.id, bytes: rgb.length });
   const t0 = performance.now();
   try{
@@ -3380,7 +3564,10 @@ async function runUpscale(){
 
     const dataUrl = stage.toDataURL('image/png');
     addHistory(dataUrl, { seed: S.lastSeed, prompt: '(超分)', w: tw, h: th });
-    stage.toBlob(b => autoSaveImage(b, { prompt: '(超分)', seed: S.lastSeed, w: tw, h: th }), 'image/png');
+    stage.toBlob(b => {
+      if (!b){ toast('自动保存失败：画布导出为空', 'err'); return; }
+      autoSaveImage(b, { prompt: '(超分)', seed: S.lastSeed, w: tw, h: th }, { noMeta: true, suffix: '_up' });
+    }, 'image/png');
 
     const dl = $('#lnkDlUp');
     if (dl) dl.onclick = e => {
@@ -3401,6 +3588,7 @@ async function runUpscale(){
   }finally{
     UP.running = false;
     setUpscaleBusy(false);
+    stopUpProgress();
     renderUpChips();
   }
 }
@@ -3465,7 +3653,10 @@ function initControls(){
   const dz = $('#dropZone');
   ['dragover', 'dragenter'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('over'); }));
   ['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('over'); }));
-  dz.addEventListener('drop', e => { if (e.dataTransfer.files[0]) loadInitFile(e.dataTransfer.files[0]); });
+  dz.addEventListener('drop', e => {
+    e.stopPropagation();
+    if (e.dataTransfer.files[0]) loadInitFile(e.dataTransfer.files[0]);
+  });
 
   $('#btnClearMask').addEventListener('click', () => {
     mctx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
@@ -3699,6 +3890,39 @@ function initControls(){
     log('info', '重新检查放大器', { count: n });
   });
   document.addEventListener('click', () => { if (upPop.classList.contains('on')) upPop.classList.remove('on'); });
+
+  /* ── 元数据导入 ── */
+  $('#btnImportMeta').addEventListener('click', () => $('#fileMeta').click());
+  $('#metaDrop').addEventListener('click', () => $('#fileMeta').click());
+  $('#fileMeta').addEventListener('change', e => {
+    const f = e.target.files[0];
+    if (f) importMetaFile(f);
+    e.target.value = '';
+  });
+
+  let dragDepth = 0;
+  const metaDrop = $('#metaDrop');
+  const hasFiles = e => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+  document.addEventListener('dragenter', e => {
+    if (!hasFiles(e)) return;
+    dragDepth++;
+    metaDrop.classList.add('over');
+  });
+  document.addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+  document.addEventListener('dragleave', () => {
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (!dragDepth) metaDrop.classList.remove('over');
+  });
+  document.addEventListener('drop', e => {
+    dragDepth = 0;
+    metaDrop.classList.remove('over');
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (!f) return;
+    const ext = (f.name.split('.').pop() || '').toLowerCase();
+    if (!['json', 'txt'].includes(ext)) return;   // 图片交给图生图区域
+    e.preventDefault();
+    importMetaFile(f);
+  });
 
   /* ── 诊断日志 ── */
   $('#btnExportLog').addEventListener('click', exportLog);
