@@ -134,11 +134,27 @@ body::before{
 .btn.ghost:hover:not(:disabled){background:var(--panel-2);color:var(--text);border-color:var(--line)}
 .btn svg{width:14px;height:14px;flex:0 0 auto}
 
-.studio{flex:1;min-height:0;display:grid;grid-template-columns:294px minmax(0,1fr) 340px;gap:11px}
+.studio{
+  flex:1;min-height:0;display:grid;
+  grid-template-columns:var(--col-left,294px) 11px minmax(0,1fr) 11px var(--col-right,340px);
+}
 .col{
   min-height:0;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);
   box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden;
 }
+/* 列宽拖拽手柄 */
+.resizer{position:relative;cursor:col-resize;background:transparent;touch-action:none}
+.resizer::after{
+  content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:3px;height:32px;border-radius:99px;background:var(--line-strong);
+  transition:.18s var(--ease);
+}
+.resizer:hover::after,.resizer.dragging::after{
+  background:var(--accent);height:70px;box-shadow:0 0 10px rgba(var(--accent-rgb),.7);
+}
+body.col-resizing{cursor:col-resize;user-select:none}
+body.col-resizing *{pointer-events:none}
+body.col-resizing .resizer{pointer-events:auto}
 .col-scroll{overflow-y:auto;overflow-x:hidden;padding:12px;display:flex;flex-direction:column;gap:16px;flex:1}
 
 .sec-title{
@@ -241,6 +257,59 @@ html[data-theme="light"] .zoom-sel option{background:#fff;color:#101828}
 .zoom-btn svg{width:13px;height:13px}
 html[data-theme="light"] .zoom-btn{color:#344054}
 html[data-theme="light"] .zoom-btn:hover{background:rgba(16,24,40,.07)}
+
+/* 画布右上角快捷操作 */
+.stage-actions{display:flex;gap:5px;pointer-events:auto}
+.sa-btn{
+  display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 9px;border-radius:8px;
+  border:1px solid rgba(255,255,255,.13);background:rgba(8,9,13,.6);color:#dfe5f0;
+  font-size:11px;font-weight:550;font-family:inherit;cursor:pointer;
+  backdrop-filter:blur(10px);transition:.16s var(--ease);white-space:nowrap;
+}
+.sa-btn:hover:not(:disabled){background:rgba(8,9,13,.82);border-color:rgba(var(--accent-rgb),.65);transform:translateY(-1px)}
+.sa-btn:disabled{opacity:.4;cursor:not-allowed}
+.sa-btn svg{width:13px;height:13px}
+html[data-theme="light"] .sa-btn{background:rgba(255,255,255,.88);border-color:rgba(16,24,40,.12);color:#344054}
+html[data-theme="light"] .sa-btn:hover:not(:disabled){background:#fff}
+
+/* 超分弹出面板 */
+.pop{
+  position:absolute;right:9px;top:42px;z-index:8;width:236px;padding:11px;
+  border-radius:12px;background:var(--panel);border:1px solid var(--line-strong);
+  box-shadow:0 22px 56px -18px #000;display:none;flex-direction:column;gap:10px;
+  animation:popIn .18s var(--ease);
+}
+.pop.on{display:flex}
+.pop-title{font-size:11px;font-weight:650;color:var(--text);display:flex;justify-content:space-between;align-items:center}
+.pop-label{font-size:10.5px;color:var(--text-faint);margin-bottom:5px;display:block}
+.pop .chips{gap:4px}
+.pop .chip{height:24px;font-size:10.5px;padding:0 6px;flex:1;justify-content:center}
+.pop-run{
+  height:30px;border-radius:8px;border:1px solid transparent;cursor:pointer;
+  background:linear-gradient(135deg,rgba(var(--accent-rgb),1),rgba(160,109,255,.95));
+  color:#fff;font-size:11.5px;font-weight:600;font-family:inherit;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:.16s;
+}
+.pop-run:hover:not(:disabled){transform:translateY(-1px)}
+.pop-run:disabled{opacity:.5;cursor:not-allowed}
+.pop-note{font-size:10px;color:var(--text-faint);line-height:1.5}
+
+/* 提示图标 + 浮层说明 */
+.info{
+  display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
+  width:13px;height:13px;margin-left:5px;border-radius:50%;
+  border:1px solid var(--line-strong);color:var(--text-faint);
+  font-size:9px;font-weight:700;line-height:1;cursor:help;user-select:none;
+  vertical-align:1px;transition:.15s;
+}
+.info:hover,.info.on{border-color:var(--accent);color:var(--accent);background:rgba(var(--accent-rgb),.14)}
+#tip{
+  position:fixed;z-index:300;max-width:270px;padding:8px 10px;border-radius:9px;
+  background:var(--panel-3);border:1px solid var(--line-strong);color:var(--text);
+  font-size:11px;line-height:1.65;box-shadow:0 16px 38px -14px #000;
+  opacity:0;transform:translateY(3px);transition:.14s var(--ease);pointer-events:none;
+}
+#tip.on{opacity:1;transform:none}
 #maskCanvas.on{display:block}
 
 .hud{position:absolute;left:10px;top:10px;right:10px;display:flex;gap:8px;align-items:flex-start;pointer-events:none;z-index:3}
@@ -366,10 +435,12 @@ select:focus,input[type=text]:focus,input[type=number]:focus{border-color:rgba(v
 }
 .chip:hover{border-color:var(--line-strong);color:var(--text)}
 .chip.on{background:rgba(var(--accent-rgb),.14);border-color:rgba(var(--accent-rgb),.6);color:var(--text)}
+.chip.off{opacity:.36;cursor:not-allowed}
+.chip.off:hover{border-color:var(--line);color:var(--text-dim)}
 
 .switch-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 0}
-.switch-row .lab{font-size:11.5px;color:var(--text-dim);display:flex;flex-direction:column;gap:1px}
-.switch-row .lab small{font-size:9.5px;color:var(--text-faint);line-height:1.35}
+.switch-row .lab{font-size:11.5px;color:var(--text-dim);display:block;line-height:1.5}
+.switch-row .lab small{display:block;font-size:9.5px;color:var(--text-faint);line-height:1.35}
 .switch{
   position:relative;width:34px;height:19px;border-radius:99px;background:var(--panel-3);
   border:1px solid var(--line-strong);cursor:pointer;transition:.2s var(--ease);flex:0 0 auto;
@@ -411,6 +482,22 @@ select:focus,input[type=text]:focus,input[type=number]:focus{border-color:rgba(v
   background:rgba(3,4,8,.62);backdrop-filter:blur(6px);padding:20px;
 }
 .modal.on{display:flex}
+/* 提示词编辑器 */
+.prompt-card{
+  width:min(900px,100%);height:min(560px,86vh);display:flex;flex-direction:column;
+  background:var(--panel);border:1px solid var(--line-strong);border-radius:18px;
+  overflow:hidden;box-shadow:0 40px 90px -30px #000;animation:popIn .22s var(--ease);
+}
+.prompt-panes{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px 18px}
+.ppane{display:flex;flex-direction:column;min-height:0;border:1px solid var(--line);border-radius:12px;background:var(--panel-2);overflow:hidden}
+.ppane:focus-within{border-color:rgba(var(--accent-rgb),.6)}
+.ppane-head{display:flex;align-items:center;justify-content:space-between;padding:8px 11px;border-bottom:1px solid var(--line);font-size:11px;color:var(--text-dim);font-weight:600}
+.ppane textarea{
+  flex:1;min-height:0;border:0;background:transparent;color:var(--text);
+  font-family:inherit;font-size:13px;line-height:1.7;padding:11px;resize:none;outline:none;
+}
+.prompt-foot{display:flex;align-items:center;gap:8px;padding:12px 18px;border-top:1px solid var(--line)}
+@media (max-width:700px){ .prompt-panes{grid-template-columns:1fr} }
 .modal-card{
   width:min(560px,100%);max-height:86vh;overflow-y:auto;background:var(--panel);
   border:1px solid var(--line-strong);border-radius:18px;box-shadow:0 40px 90px -30px #000;
@@ -490,7 +577,14 @@ select:focus,input[type=text]:focus,input[type=number]:focus{border-color:rgba(v
 .save-path.ok{border-style:solid;border-color:rgba(61,220,151,.35);color:var(--text)}
 .save-path.warn{border-color:rgba(255,184,77,.45);color:var(--warn)}
 
-.about-row{display:flex;justify-content:space-between;gap:12px;font-size:11.5px;padding:6px 0;border-bottom:1px dashed var(--line)}.about-row:last-child{border-bottom:0}
+.about-row{display:flex;justify-content:space-between;gap:12px;font-size:11.5px;padding:6px 0;border-bottom:1px dashed var(--line)}
+/* 关于页项目卡片 */
+.proj-card{border:1px solid var(--line);border-radius:12px;padding:11px 12px;background:var(--panel-2)}
+.proj-row{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:11.5px;padding:4px 0}
+.proj-row span{color:var(--text-faint);flex:0 0 auto}
+.proj-row a{color:var(--accent);text-decoration:none;word-break:break-all;text-align:right}
+.proj-row a:hover{text-decoration:underline}
+.proj-note{margin:9px 0 0;font-size:10.5px;line-height:1.65;color:var(--text-dim);border-top:1px dashed var(--line);padding-top:8px}.about-row:last-child{border-bottom:0}
 .about-row span{color:var(--text-dim)}
 .about-row b{color:var(--text);font-weight:560;font-family:var(--font);font-size:11px;text-align:right;word-break:break-all}
 
@@ -601,14 +695,40 @@ html.no-anim *{transition:none!important;animation:none!important}
       </div>
     </aside>
 
+    <div class="resizer" data-side="left" title="拖动调整左栏宽度"></div>
+
     <!-- ─── 中栏 ─── -->
     <section class="col">
       <div class="stage-wrap" id="stageWrap">
         <div class="hud">
           <span class="hud-chip" id="hudModel"></span>
           <span class="hud-chip" id="hudStep" style="display:none">0 / 0</span>
-          <div class="spacer"></div>
           <span class="hud-chip" id="hudEta" style="display:none"></span>
+          <div class="spacer"></div>
+          <div class="stage-actions">
+            <button class="sa-btn" id="btnToI2I" title="把当前画面作为图生图底图" disabled>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 15l5-5 4 4 3-3 6 6"/><circle cx="8.5" cy="8.5" r="1.4"/></svg>
+              图生图
+            </button>
+            <button class="sa-btn" id="btnUpscale" title="用设备端放大器提升分辨率" disabled>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+              超分
+            </button>
+          </div>
+        </div>
+
+        <div class="pop" id="upPop">
+          <div class="pop-title">图像超分 <span id="upDims" style="font-weight:400;color:var(--text-faint)"></span></div>
+          <div>
+            <label class="pop-label">类型</label>
+            <div class="chips" id="upKindChips"></div>
+          </div>
+          <div>
+            <label class="pop-label">放大倍率</label>
+            <div class="chips" id="upScaleChips"></div>
+          </div>
+          <button class="pop-run" id="btnRunUpscale">开始超分</button>
+          <div class="pop-note" id="upNote"></div>
         </div>
         <div class="empty-stage" id="emptyStage">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg>
@@ -658,6 +778,10 @@ html.no-anim *{transition:none!important;animation:none!important}
             <button class="neg-toggle" id="negToggle">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>
               反向提示词
+            </button>
+            <div style="flex:1"></div>
+            <button class="mini-btn" id="btnExpandPrompt" title="展开提示词编辑器">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
             </button>
           </div>
           <div id="negWrap">
@@ -786,8 +910,9 @@ html.no-anim *{transition:none!important;animation:none!important}
       <button class="sn-item active" data-sec="conn">连接<small>模式 · 地址 · 端口</small></button>
       <button class="sn-item" data-sec="gen">生成<small>提示词 · 预览</small></button>
       <button class="sn-item" data-sec="ui">外观<small>主题 · 强调色</small></button>
-      <button class="sn-item" data-sec="data">配置<small>自动保存 · 历史</small></button>
-      <button class="sn-item" data-sec="about">关于<small>接口依据 · 运行时</small></button>
+      <button class="sn-item" data-sec="save">保存<small>目录 · 元数据 · 命名</small></button>
+      <button class="sn-item" data-sec="data">配置<small>导入导出 · 历史</small></button>
+      <button class="sn-item" data-sec="about">关于<small>项目 · 接口依据</small></button>
       <div class="sn-foot" id="snVersion">未连接</div>
     </aside>
 
@@ -812,77 +937,71 @@ html.no-anim *{transition:none!important;animation:none!important}
           </div>
 
           <div class="sgroup">
-            <label class="field-label">连接方式</label>
+            <label class="field-label">连接方式<span class="info" data-tip="同源代理由 serve.py 转发 8808 / 8081，绕开 CORS 与混合内容限制；直连模式需页面本身跑在 http 源下且浏览器放行跨域，通常只在调试时用。">i</span></label>
             <div class="seg" id="segMode">
               <button data-mode="proxy" class="on">同源代理</button>
               <button data-mode="direct">直连手机</button>
               <button data-mode="demo">演示模式</button>
             </div>
-            <div class="shelp">代理模式由 serve.py 转发 8808 / 8081，绕开浏览器 CORS 与混合内容限制；直连模式需页面本身跑在 http 源下且浏览器放行跨域，通常只在调试时用。</div>
           </div>
 
           <div class="sgroup">
-            <label class="field-label">手机地址</label>
-            <input type="text" id="cfgHost" placeholder="192.168.0.50">
+            <label class="field-label">手机地址<span class="info" data-tip="手机与电脑需在同一局域网。地址只填 IP 或主机名，不要带 http:// 和端口。">i</span></label>
+            <input type="text" id="cfgHost" placeholder="192.168.1.100">
             <div class="row2">
               <div>
-                <label class="field-label" style="font-size:10px">控制口 ctl</label>
+                <label class="field-label" style="font-size:10px">控制口 ctl<span class="info" data-tip="默认 8808，提供 /info、/models、/status、/select。">i</span></label>
                 <input type="number" id="cfgCtlPort" value="8808">
               </div>
               <div>
-                <label class="field-label" style="font-size:10px">生成口 gen</label>
+                <label class="field-label" style="font-size:10px">生成口 gen<span class="info" data-tip="默认 8081，提供 /generate、/tokenize、/upscale。只有选定模型后才会监听。">i</span></label>
                 <input type="number" id="cfgGenPort" value="8081">
               </div>
             </div>
           </div>
 
           <div class="sgroup">
-            <label class="field-label">连通性自检</label>
+            <label class="field-label">连通性自检<span class="info" data-tip="分别对 8808 与 8081 做 TCP 探测，并读取 /info 校验是不是 Local Dream。">i</span></label>
             <button class="btn" id="btnSaveTest">保存并测试连接</button>
-            <div class="shelp" id="diagOut">分别探测 8808 与 8081，说明哪个口不通、为什么。</div>
+            <div class="shelp" id="diagOut">尚未检测</div>
           </div>
         </div>
 
         <!-- ② 生成 -->
         <div class="sec-pane" data-pane="gen">
           <div class="sgroup">
-            <label class="field-label">默认反向提示词</label>
+            <label class="field-label">默认反向提示词<span class="info" data-tip="新建会话时自动填入。提示词面板里已经手动改过的内容不会被覆盖。">i</span></label>
             <textarea id="cfgNeg" rows="3" placeholder="lowres, bad anatomy, ..."></textarea>
-            <div class="shelp">新建会话时填入；提示词面板里已手填的内容不会被覆盖。</div>
           </div>
           <div class="sgroup">
             <div class="switch-row">
-              <div class="lab">默认开启过程预览<small>show_diffusion_process</small></div>
+              <div class="lab">默认开启过程预览<span class="info" data-tip="对应 show_diffusion_process。开启后每一帧中间图都要单独传一张 raw 图，弱网建议关掉。">i</span><small>show_diffusion_process</small></div>
               <div class="switch" id="cfgShowProc"></div>
             </div>
-            <div class="shelp">开启后生成过程中逐帧推送中间图，代价是每帧都要传一张 raw 图，弱网下建议关掉。</div>
           </div>
           <div class="sgroup">
-            <label class="field-label">默认预览步幅</label>
+            <label class="field-label">默认预览步幅<span class="info" data-tip="每 N 步回传一次预览。步幅越大流量越小，画面跳变越明显。">i</span></label>
             <input type="number" id="cfgStride" min="1" max="20" value="1">
-            <div class="shelp">每 N 步回传一次预览。步幅越大流量越小，画面跳变越明显。</div>
           </div>
           <div class="sgroup">
-            <label class="field-label">历史保留上限</label>
+            <label class="field-label">历史保留上限<span class="info" data-tip="超出后丢弃最旧的一张。历史只存在内存里，刷新页面即清空。">i</span></label>
             <input type="number" id="cfgMaxHist" min="6" max="200" value="30">
-            <div class="shelp">超出后丢弃最旧的一张。历史只存在内存里，刷新页面即清空。</div>
           </div>
         </div>
 
         <!-- ③ 外观 -->
         <div class="sec-pane" data-pane="ui">
           <div class="sgroup">
-            <label class="field-label">主题</label>
+            <label class="field-label">主题<span class="info" data-tip="OLED 纯黑会把所有底色压到 #000 并关闭装饰光晕，适合 OLED 屏省电；跟随系统读取 prefers-color-scheme。">i</span></label>
             <select id="cfgTheme">
               <option value="dark">深色</option>
               <option value="oled">OLED 纯黑</option>
               <option value="light">浅色</option>
               <option value="auto">跟随系统</option>
             </select>
-            <div class="shelp">OLED 模式把所有底色压到 #000，适合 OLED 屏省电与高对比；跟随系统读取 <code>prefers-color-scheme</code>。</div>
           </div>
           <div class="sgroup">
-            <label class="field-label">强调色</label>
+            <label class="field-label">强调色<span class="info" data-tip="可以直接填十六进制色值，也可以点色板。从图片取色会按色相分桶加权提取主色。">i</span></label>
             <input type="text" id="cfgAccent" placeholder="#6d8cff">
             <div class="swatches" id="accentSwatches"></div>
             <div style="display:flex;gap:8px;margin-top:9px">
@@ -890,22 +1009,20 @@ html.no-anim *{transition:none!important;animation:none!important}
               <button class="btn ghost" id="btnAccentAuto" style="flex:0 0 auto">随机</button>
               <input type="file" id="fileAccent" accept="image/*" style="display:none">
             </div>
-            <div class="shelp">浏览器读不到系统级强调色（Windows 主题色 / Android 动态取色都没有对应 Web API），所以这里用「从壁纸图提取主色」来近似 Material You 的效果——算法同样是按色相分桶加权取主色。</div>
           </div>
           <div class="sgroup">
             <div class="switch-row">
-              <div class="lab">减少动效<small>关闭过渡与动画</small></div>
+              <div class="lab">减少动效<span class="info" data-tip="关掉按钮位移、弹层淡入等过渡，适合录屏或低性能设备。">i</span></div>
               <div class="switch" id="cfgReduceMotion"></div>
             </div>
-            <div class="shelp">关掉按钮位移、弹层淡入等效果，适合录屏或低性能设备。</div>
           </div>
         </div>
 
-        <!-- ④ 配置 -->
-        <div class="sec-pane" data-pane="data">
+        <!-- ④ 保存 -->
+        <div class="sec-pane" data-pane="save">
           <div class="sgroup">
             <div class="switch-row">
-              <div class="lab">生成后自动保存<small>写入你授权的文件夹</small></div>
+              <div class="lab">生成后自动保存<span class="info" data-tip="走浏览器文件系统权限，只能写进你亲手授权的那个文件夹，页面读不到里面别的东西。需 Chrome / Edge。">i</span></div>
               <div class="switch" id="cfgAutoSave"></div>
             </div>
             <div class="save-path" id="savePath">未选择文件夹</div>
@@ -913,28 +1030,65 @@ html.no-anim *{transition:none!important;animation:none!important}
               <button class="btn" id="btnPickDir" style="flex:1">选择文件夹</button>
               <button class="btn ghost" id="btnForgetDir">解除</button>
             </div>
-            <div class="shelp">走浏览器文件系统权限，只能写进你亲手授权的那个文件夹，页面读不到里面别的东西。需 Chrome / Edge；重开页面可能要再确认一次权限。</div>
           </div>
+
           <div class="sgroup">
-            <label class="field-label">配置备份</label>
+            <div class="switch-row">
+              <div class="lab">同时保存提示词与参数<span class="info" data-tip="在图片旁边额外写一个同名文本文件，记录提示词、反向提示词、种子、步数、CFG、采样器、模型与尺寸。">i</span></div>
+              <div class="switch" id="cfgSaveMeta"></div>
+            </div>
+          </div>
+
+          <div class="sgroup">
+            <label class="field-label">元数据格式<span class="info" data-tip="JSON 便于程序读取与批量整理；TXT 便于直接翻看或贴到别处。">i</span></label>
+            <div class="seg" id="segMetaFmt">
+              <button data-fmt="json" class="on">JSON</button>
+              <button data-fmt="txt">TXT</button>
+            </div>
+          </div>
+
+          <div class="sgroup">
+            <label class="field-label">命名规则<span class="info" data-tip="可用占位符：{date} 日期、{time} 时间、{seed} 种子、{model} 模型名、{w} 宽、{h} 高、{index} 序号。不含扩展名。">i</span></label>
+            <input type="text" id="cfgNamePattern" placeholder="{date}_{time}_{seed}">
+            <div class="pop-note" id="namePreview">预览：—</div>
+          </div>
+        </div>
+
+        <!-- ⑤ 配置 -->
+        <div class="sec-pane" data-pane="data">
+          <div class="sgroup">
+            <label class="field-label">配置备份<span class="info" data-tip="包含连接方式、地址、端口、主题、保存设置与生成偏好，不含任何作品图。">i</span></label>
             <div style="display:flex;gap:8px">
               <button class="btn" id="btnExportCfg" style="flex:1">导出 JSON</button>
               <button class="btn" id="btnImportCfg" style="flex:1">导入 JSON</button>
               <input type="file" id="fileCfg" accept=".json" style="display:none">
             </div>
-            <div class="shelp">包含连接方式、地址、端口、主题与生成偏好，不含作品图。</div>
           </div>
           <div class="sgroup">
             <label class="field-label">本地数据</label>
             <div class="about-row"><span>历史作品</span><b id="statHist">0 张</b></div>
             <div class="about-row"><span>配置占用</span><b id="statCfg">—</b></div>
             <button class="btn danger" id="btnClearHistory" style="margin-top:9px">清空历史作品</button>
-            <div class="shelp">只清当前会话内存里的缩略图，不影响设备上的任何文件。</div>
+            <div class="shelp">只清当前会话内存里的缩略图，不影响设备与磁盘上的任何文件。</div>
           </div>
         </div>
 
-        <!-- ⑤ 关于 -->
+        <!-- ⑥ 关于 -->
         <div class="sec-pane" data-pane="about">
+          <div class="sgroup">
+            <label class="field-label">项目</label>
+            <div class="proj-card">
+              <div class="proj-row">
+                <span>源码仓库</span>
+                <a href="https://github.com/Lzyvd/Localdream-Web-UI-Studio" target="_blank" rel="noreferrer">Lzyvd/Localdream-Web-UI-Studio</a>
+              </div>
+              <div class="proj-row">
+                <span>作者</span>
+                <a href="https://github.com/Lzyvd/" target="_blank" rel="noreferrer">github.com/Lzyvd</a>
+              </div>
+              <p class="proj-note">如果这个项目对你有帮助，欢迎到仓库点个 Star，也欢迎提 Issue 或 PR 一起完善。</p>
+            </div>
+          </div>
           <div class="sgroup">
             <label class="field-label">运行时</label>
             <div id="aboutInfo"></div>
@@ -942,9 +1096,8 @@ html.no-anim *{transition:none!important;animation:none!important}
           <div class="sgroup">
             <label class="field-label">接口依据</label>
             <ul class="src-list">
-              <li>Local Dream 官方 HTTP API 参考 · <a href="https://ld-guide.chino.icu/zh/features/http-api" target="_blank" rel="noreferrer">ld-guide.chino.icu/zh/features/http-api</a>（/generate、/tokenize、SSE、scheduler）</li>
-              <li>ld-api 客户端 README · <a href="https://github.com/kongxiangyiren/ld-api" target="_blank" rel="noreferrer">kongxiangyiren/ld-api</a>（双端口、参数表、取消、tokenize）</li>
-              <li>设备互联类型定义 · ld-api <code>src/device.ts</code>（Info / Module / Models / Status）</li>
+              <li>Local Dream 官方 HTTP API 参考 · <a href="https://ld-guide.chino.icu/zh/features/http-api" target="_blank" rel="noreferrer">ld-guide.chino.icu/zh/features/http-api</a></li>
+              <li>ld-api 客户端 · <a href="https://github.com/kongxiangyiren/ld-api" target="_blank" rel="noreferrer">kongxiangyiren/ld-api</a></li>
               <li>受控模式入口与双端口 · <a href="https://dshpluginhub.ai/zh/plugins/dsh-localdream" target="_blank" rel="noreferrer">dsh-localdream</a></li>
             </ul>
           </div>
@@ -962,6 +1115,35 @@ html.no-anim *{transition:none!important;animation:none!important}
 </div>
 
 <div class="toasts" id="toasts"></div>
+
+<!-- ─── 提示词编辑器 ─── -->
+<div class="modal" id="promptModal">
+  <div class="prompt-card">
+    <div class="settings-top">
+      <h3>提示词编辑器</h3>
+      <button class="mini-btn" id="btnClosePrompt" style="width:26px;height:26px" title="关闭">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="prompt-panes">
+      <div class="ppane">
+        <div class="ppane-head"><span>正向提示词</span><span class="chip-mini" id="pmPosCount">0 / 77</span></div>
+        <textarea id="pmPos" placeholder="1girl, masterpiece, best quality, ..."></textarea>
+      </div>
+      <div class="ppane">
+        <div class="ppane-head"><span>反向提示词</span><span class="chip-mini" id="pmNegCount">0 / 77</span></div>
+        <textarea id="pmNeg" placeholder="lowres, bad anatomy, ..."></textarea>
+      </div>
+    </div>
+    <div class="prompt-foot">
+      <span class="shelp" style="margin-right:auto">Ctrl + Enter 应用</span>
+      <button class="btn" id="btnCancelPrompt">取消</button>
+      <button class="btn primary" id="btnApplyPrompt">应用</button>
+    </div>
+  </div>
+</div>
+
+<div id="tip"></div>
 
 <script>
 'use strict';
@@ -999,7 +1181,12 @@ const DEFAULT_CFG = {
   showProcess: true,
   maxHistory: 30,
   reduceMotion: false,
-  autoSave: false
+  autoSave: false,
+  saveMeta: true,
+  metaFmt: 'json',
+  namePattern: '{date}_{time}_{seed}',
+  colLeft: 294,
+  colRight: 340
 };
 let CFG = loadCfg();
 
@@ -1100,30 +1287,91 @@ async function ensureDirPermission(){
   }catch{ return false; }
 }
 
-async function autoSaveImage(blob){
+/** 按命名规则生成基础文件名（不含扩展名） */
+function buildBaseName(meta){
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  const map = {
+    date: `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}`,
+    time: `${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`,
+    seed: meta.seed != null ? meta.seed : (S.lastSeed != null ? S.lastSeed : 'x'),
+    model: (S.model && (S.model.name || S.model.id)) || 'model',
+    w: meta.w || S.drawW || currentSize()[0],
+    h: meta.h || S.drawH || currentSize()[1],
+    index: S.history.length + 1
+  };
+  let name = String(CFG.namePattern || '{date}_{time}_{seed}');
+  name = name.replace(/\{(date|time|seed|model|w|h|index)\}/g, (_, k) => String(map[k] != null ? map[k] : ''));
+  name = name.replace(/[\\/:*?"<>|\s]+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+  return name || `LD_${map.date}_${map.time}`;
+}
+
+/** 组装提示词与参数文本 */
+function buildMetaText(meta){
+  const p = $('#prompt') ? $('#prompt').value.trim() : '';
+  const n = $('#negPrompt') ? $('#negPrompt').value.trim() : '';
+  const info = {
+    prompt: meta.prompt != null ? meta.prompt : p,
+    negative_prompt: meta.negative != null ? meta.negative : n,
+    seed: meta.seed != null ? meta.seed : S.lastSeed,
+    steps: meta.steps != null ? meta.steps : parseInt($('#steps').value),
+    cfg: meta.cfg != null ? meta.cfg : parseFloat($('#cfg').value),
+    scheduler: meta.scheduler || $('#scheduler').value,
+    model: meta.model || (S.model && S.model.id) || '',
+    width: meta.w || stage.width,
+    height: meta.h || stage.height,
+    created: new Date().toISOString(),
+    generator: 'Localdream-Web-UI-Studio'
+  };
+  if (CFG.metaFmt === 'txt'){
+    return Object.entries(info).map(([k, v]) => `${k}: ${v}`).join('\n') + '\n';
+  }
+  return JSON.stringify(info, null, 2) + '\n';
+}
+
+async function autoSaveImage(blob, meta){
   if (!CFG.autoSave || !saveDirHandle || !blob) return;
   if (!await ensureDirPermission()){
     toast('自动保存失败：目录权限已失效，请在设置里重新授权', 'warn');
     return;
   }
-  const d = new Date();
-  const p = n => String(n).padStart(2, '0');
-  const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
-  const name = `LD_${stamp}_${S.lastSeed != null ? S.lastSeed : 'x'}.png`;
+  const base = buildBaseName(meta || {});
   try{
-    const fh = await saveDirHandle.getFileHandle(name, { create: true });
+    const fh = await saveDirHandle.getFileHandle(base + '.png', { create: true });
     const w = await fh.createWritable();
     await w.write(blob);
     await w.close();
-    toast('已自动保存 ' + name, 'ok');
+    let extra = '';
+    if (CFG.saveMeta){
+      const ext = CFG.metaFmt === 'txt' ? 'txt' : 'json';
+      const mh = await saveDirHandle.getFileHandle(`${base}.${ext}`, { create: true });
+      const mw = await mh.createWritable();
+      await mw.write(buildMetaText(meta || {}));
+      await mw.close();
+      extra = ' + ' + ext;
+    }
+    toast('已保存 ' + base + '.png' + extra, 'ok');
   }catch(e){
     toast('自动保存失败：' + (e.message || e.name), 'err');
   }
 }
 
-function renderSaveState(){
-  const el = $('#savePath');
+/** 命名规则实时预览 */
+function updateNamePreview(){
+  const el = $('#namePreview');
   if (!el) return;
+  const fmtBtn = $$('#segMetaFmt button').find(b => b.classList.contains('on'));
+  const fmt = fmtBtn ? fmtBtn.dataset.fmt : (CFG.metaFmt || 'json');
+  const saved = CFG.namePattern;
+  CFG.namePattern = ($('#cfgNamePattern').value || '').trim() || '{date}_{time}_{seed}';
+  const base = buildBaseName({});
+  CFG.namePattern = saved;
+  const metaOn = $('#cfgSaveMeta').classList.contains('on');
+  el.textContent = `预览：${base}.png` + (metaOn ? `  +  ${base}.${fmt}` : '');
+}
+
+function renderSaveState(){
+  const el = $('#savePath');  if (!el) return;
   if (!FS_SUPPORTED){
     el.className = 'save-path warn';
     el.textContent = '当前浏览器不支持目录写入（需 Chrome / Edge）';
@@ -1242,7 +1490,8 @@ const S = {
   history: [],
   drawW: 0, drawH: 0,
   lastSeed: null,
-  cat: 'all'
+  cat: 'all',
+  upscalers: []
 };
 
 /* ───────────── 小工具 ───────────── */
@@ -1412,7 +1661,9 @@ function renderDevice(){
 async function loadModels(){
   const data = await ctlFetch('/models');
   S.models = (data && data.models) || [];
+  S.upscalers = (data && data.upscalers) || [];
   renderModels();
+  renderUpChips();
 }
 
 const CATS = [
@@ -1803,6 +2054,9 @@ function paintToStage(imgData){
   S.drawW = w; S.drawH = h;
   $('#stageFrame').style.display = '';
   $('#emptyStage').style.display = 'none';
+  $('#btnToI2I').disabled = false;
+  $('#btnUpscale').disabled = false;
+  if ($('#upPop').classList.contains('on')) renderUpChips();
   // 生成过程中不要重置蒙版（尺寸变化时 syncMaskSize 会清空）
   if (!S.generating) syncMaskSize(w, h);
   if (sizeChanged) resetView(); else applyZoom();
@@ -2122,7 +2376,17 @@ function finishGeneration(final, body){
 
   const dataUrl = stage.toDataURL('image/png');
   addHistory(dataUrl, { seed, prompt: body.prompt, w: final.width, h: final.height });
-  stage.toBlob(b => autoSaveImage(b), 'image/png');
+  stage.toBlob(b => autoSaveImage(b, {
+    prompt: body.prompt,
+    negative: body.negative_prompt,
+    seed,
+    steps: body.steps,
+    cfg: body.cfg,
+    scheduler: body.scheduler,
+    model: S.model ? S.model.id : '',
+    w: final.width,
+    h: final.height
+  }), 'image/png');
 
   const dl = $('#lnkDl');
   if (dl) dl.onclick = e => {
@@ -2350,7 +2614,11 @@ function finishGenerationDemo(final, body){
     `<span style="margin-left:auto"><a href="#" id="lnkDl2" style="color:var(--accent);text-decoration:none">下载 PNG</a></span>`;
   const dataUrl = stage.toDataURL('image/png');
   addHistory(dataUrl, { seed: final.seed, prompt: body.prompt, w: final.width, h: final.height });
-  stage.toBlob(b => autoSaveImage(b), 'image/png');
+  stage.toBlob(b => autoSaveImage(b, {
+    prompt: body.prompt, negative: body.negative_prompt, seed: final.seed,
+    steps: body.steps, cfg: body.cfg, scheduler: body.scheduler,
+    model: S.model ? S.model.id : '', w: final.width, h: final.height
+  }), 'image/png');
   const dl = $('#lnkDl2');
   if (dl) dl.onclick = e => {
     e.preventDefault();
@@ -2405,6 +2673,339 @@ function bindSwitch(el, onChange){
     el.classList.toggle('on');
     if (onChange) onChange(el.classList.contains('on'));
   });
+}
+
+/* ═════════════ 栏宽拖拽 ═════════════ */
+const COL_MIN = { left: 200, right: 240 };
+const COL_MAX = { left: 500, right: 580 };
+
+function applyLayout(){
+  const l = clamp(parseInt(CFG.colLeft) || 294, COL_MIN.left, COL_MAX.left);
+  const r = clamp(parseInt(CFG.colRight) || 340, COL_MIN.right, COL_MAX.right);
+  CFG.colLeft = l; CFG.colRight = r;
+  document.documentElement.style.setProperty('--col-left', l + 'px');
+  document.documentElement.style.setProperty('--col-right', r + 'px');
+}
+
+function initResizers(){
+  $$('.resizer').forEach(hd => {
+    const side = hd.dataset.side;
+    const key = side === 'left' ? 'colLeft' : 'colRight';
+    hd.addEventListener('pointerdown', e => {
+      if (window.matchMedia('(max-width:960px)').matches) return;
+      e.preventDefault();
+      const startX = e.clientX;
+      const startW = side === 'left' ? CFG.colLeft : CFG.colRight;
+      hd.classList.add('dragging');
+      document.body.classList.add('col-resizing');
+      try{ hd.setPointerCapture(e.pointerId); }catch{}
+      const move = ev => {
+        const dx = ev.clientX - startX;
+        const w = side === 'left' ? startW + dx : startW - dx;
+        CFG[key] = Math.round(clamp(w, COL_MIN[side], COL_MAX[side]));
+        applyLayout();
+        applyZoom();
+      };
+      const up = () => {
+        hd.classList.remove('dragging');
+        document.body.classList.remove('col-resizing');
+        hd.removeEventListener('pointermove', move);
+        hd.removeEventListener('pointerup', up);
+        hd.removeEventListener('pointercancel', up);
+        saveCfg();
+        applyZoom();
+      };
+      hd.addEventListener('pointermove', move);
+      hd.addEventListener('pointerup', up);
+      hd.addEventListener('pointercancel', up);
+    });
+    hd.addEventListener('dblclick', () => {
+      CFG[key] = side === 'left' ? 294 : 340;
+      applyLayout(); saveCfg(); applyZoom();
+    });
+  });
+}
+
+/* ═════════════ 说明浮层 ═════════════ */
+function initTips(){
+  const tip = $('#tip');
+  let anchor = null;
+  const show = el => {
+    const text = el.dataset.tip;
+    if (!text) return;
+    anchor = el;
+    el.classList.add('on');
+    tip.textContent = text;
+    tip.classList.add('on');
+    const r = el.getBoundingClientRect();
+    const tr = tip.getBoundingClientRect();
+    // 优先放到图标右侧，避免盖住下方控件
+    let x = r.right + 8;
+    let y = r.top - 3;
+    if (x + tr.width > window.innerWidth - 10){
+      x = r.left - tr.width - 8;
+      if (x < 10){
+        x = clamp(r.left + r.width / 2 - tr.width / 2, 10, window.innerWidth - tr.width - 10);
+        y = r.bottom + 8;
+      }
+    }
+    y = clamp(y, 8, window.innerHeight - tr.height - 8);
+    tip.style.left = x + 'px';
+    tip.style.top = y + 'px';
+  };
+  const hide = () => {
+    tip.classList.remove('on');
+    if (anchor) anchor.classList.remove('on');
+    anchor = null;
+  };
+  document.addEventListener('mouseover', e => {
+    const t = e.target.closest && e.target.closest('[data-tip]');
+    if (t && t !== anchor){ hide(); show(t); }
+  });
+  document.addEventListener('mouseout', e => {
+    const t = e.target.closest && e.target.closest('[data-tip]');
+    if (t && !t.contains(e.relatedTarget)) hide();
+  });
+  document.addEventListener('click', e => {
+    const t = e.target.closest && e.target.closest('[data-tip]');
+    if (t){
+      if (anchor === t) hide(); else { hide(); show(t); }
+    } else hide();
+  });
+  window.addEventListener('scroll', hide, true);
+}
+
+/* ═════════════ 提示词编辑器 ═════════════ */
+let pmTimer = null;
+
+async function tokenizeText(text){
+  if (!text) return null;
+  if (CFG.mode === 'demo'){
+    const rough = Math.min(77, Math.ceil(text.split(/[\s,]+/).filter(Boolean).length * 1.7));
+    return { count: rough, max: 77 };
+  }
+  try{
+    const r = await ctlFetch('/tokenize', { method: 'POST', body: { prompt: text }, timeout: 5000 });
+    return { count: r.count, max: r.max_length };
+  }catch{
+    try{
+      const res = await fetch(baseUrl(CFG.genPort) + '/tokenize', {
+        method: 'POST', headers: headers({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ prompt: text })
+      });
+      const j = await res.json();
+      return { count: j.count, max: j.max_length };
+    }catch{ return null; }
+  }
+}
+
+function setPmChip(el, r){
+  if (!el) return;
+  if (!r){ el.textContent = '— / 77'; el.classList.remove('over'); return; }
+  el.textContent = `${r.count} / ${r.max}`;
+  el.classList.toggle('over', r.count > r.max);
+}
+
+function updatePmCounts(){
+  clearTimeout(pmTimer);
+  pmTimer = setTimeout(async () => {
+    const [a, b] = await Promise.all([
+      tokenizeText($('#pmPos').value.trim()),
+      tokenizeText($('#pmNeg').value.trim())
+    ]);
+    setPmChip($('#pmPosCount'), a);
+    setPmChip($('#pmNegCount'), b);
+  }, 380);
+}
+
+function openPromptModal(){
+  $('#pmPos').value = $('#prompt').value;
+  $('#pmNeg').value = $('#negPrompt').value;
+  $('#promptModal').classList.add('on');
+  updatePmCounts();
+  setTimeout(() => $('#pmPos').focus(), 60);
+}
+function closePromptModal(){ $('#promptModal').classList.remove('on'); }
+function applyPromptModal(){
+  $('#prompt').value = $('#pmPos').value;
+  $('#negPrompt').value = $('#pmNeg').value;
+  scheduleTokenize();
+  closePromptModal();
+  toast('提示词已更新');
+}
+
+/* ═════════════ 一键图生图 ═════════════ */
+function canvasToInitImage(){
+  if (!stage.width){ toast('画布上没有图', 'warn'); return; }
+  const [tw, th] = currentSize();
+  const sw = stage.width, sh = stage.height;
+  const c = document.createElement('canvas');
+  c.width = tw; c.height = th;
+  const cx = c.getContext('2d');
+  const s = Math.max(tw / sw, th / sh);   // cover：铺满再居中裁切
+  cx.drawImage(stage, (tw - sw * s) / 2, (th - sh * s) / 2, sw * s, sh * s);
+  const b64 = c.toDataURL('image/png').split(',')[1];
+  S.initImage = { b64, w: tw, h: th };
+
+  // 画布同步为目标尺寸，所见即所传
+  stage.width = tw; stage.height = th;
+  sctx.drawImage(c, 0, 0);
+  off.width = tw; off.height = th;
+  offctx.drawImage(c, 0, 0);
+  S.drawW = tw; S.drawH = th;
+  syncMaskSize(tw, th);
+  resetView();
+
+  const tab = $$('.tab').find(t => t.dataset.tab === 'img2img');
+  if (tab) tab.click();
+  $('#dropZone').innerHTML = `<b style="color:var(--ok)">${tw}×${th} 已就绪</b>点击可替换`;
+  toast(`已转为图生图底图 ${tw}×${th}`, 'ok');
+}
+
+/* ═════════════ 图像超分 ═════════════ */
+const UP = { kind: 'anime', scale: 4, running: false };
+
+function pickUpscaler(kind){
+  const list = (S.upscalers || []).filter(u => u && u.path);
+  if (kind === 'anime') return list.find(u => /anime/i.test(u.id || '')) || null;
+  return list.find(u => /(real|photo|general)/i.test(u.id || '')) || null;
+}
+
+function renderUpChips(){
+  const hasAnime = !!pickUpscaler('anime');
+  const hasReal = !!pickUpscaler('real');
+  if (UP.kind === 'anime' && !hasAnime && hasReal) UP.kind = 'real';
+  if (UP.kind === 'real' && !hasReal && hasAnime) UP.kind = 'anime';
+
+  const kc = $('#upKindChips');
+  if (kc){
+    kc.innerHTML =
+      `<span class="chip${UP.kind === 'anime' ? ' on' : ''}${hasAnime ? '' : ' off'}" data-kind="anime"${hasAnime ? '' : ' title="设备上没有动漫类放大器"'}>动漫</span>` +
+      `<span class="chip${UP.kind === 'real' ? ' on' : ''}${hasReal ? '' : ' off'}" data-kind="real"${hasReal ? '' : ' title="设备上没有写实类放大器"'}>写实</span>`;
+    kc.querySelectorAll('[data-kind]').forEach(c => c.addEventListener('click', () => {
+      if (c.classList.contains('off')){ toast('设备上没有这类放大器', 'warn'); return; }
+      UP.kind = c.dataset.kind;
+      renderUpChips();
+    }));
+  }
+
+  const sc = $('#upScaleChips');
+  if (sc){
+    sc.innerHTML = [2, 3, 4].map(f =>
+      `<span class="chip${UP.scale === f ? ' on' : ''}" data-f="${f}">${f}×</span>`).join('');
+    sc.querySelectorAll('[data-f]').forEach(c => c.addEventListener('click', () => {
+      UP.scale = parseInt(c.dataset.f);
+      renderUpChips();
+    }));
+  }
+
+  const dims = $('#upDims');
+  if (dims){
+    dims.textContent = stage.width ? `${stage.width}×${stage.height} → ${stage.width * UP.scale}×${stage.height * UP.scale}` : '';
+  }
+  const note = $('#upNote');
+  if (note){
+    const up = pickUpscaler(UP.kind);
+    note.textContent = up
+      ? (UP.scale === 4 ? '放大器原生 ×4。' : `放大器原生 ×4，${UP.scale}× 由浏览器高质量降采样得到。`)
+      : '设备上没有可用的放大器，先在 App 内下载一个。';
+  }
+  const run = $('#btnRunUpscale');
+  if (run) run.disabled = !pickUpscaler(UP.kind) || UP.running;
+}
+
+function setUpscaleBusy(on){
+  const btn = $('#btnRunUpscale');
+  if (btn){
+    btn.disabled = on;
+    btn.textContent = on ? '处理中…' : '开始超分';
+  }
+  $('#btnUpscale').classList.toggle('on', on);
+}
+
+async function runUpscale(){
+  if (UP.running) return;
+  if (!stage.width){ toast('画布上没有图', 'warn'); return; }
+  if (CFG.mode === 'demo'){ toast('演示模式没有真实设备，无法超分', 'warn'); return; }
+  const up = pickUpscaler(UP.kind);
+  if (!up){ toast('设备上没有这类放大器', 'err'); return; }
+
+  const w = stage.width, h = stage.height;
+  const src = sctx.getImageData(0, 0, w, h).data;
+  const rgb = new Uint8Array(w * h * 3);
+  for (let i = 0, j = 0; i < src.length; i += 4, j += 3){
+    rgb[j] = src[i]; rgb[j + 1] = src[i + 1]; rgb[j + 2] = src[i + 2];
+  }
+
+  UP.running = true;
+  setUpscaleBusy(true);
+  const t0 = performance.now();
+  try{
+    const res = await fetch(baseUrl(CFG.genPort) + '/upscale', {
+      method: 'POST',
+      headers: headers({
+        'Content-Type': 'application/octet-stream',
+        'X-Image-Width': String(w),
+        'X-Image-Height': String(h),
+        'X-Upscaler-Path': up.path
+      }),
+      body: rgb
+    });
+    if (!res.ok){
+      const txt = await res.text();
+      let msg = `HTTP ${res.status}`;
+      try{ const j = JSON.parse(txt); msg = (j.error && (j.error.message || j.error)) || msg; }catch{ if (txt) msg = txt.slice(0, 160); }
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    const bmp = await createImageBitmap(blob);
+
+    const tw = Math.round(w * UP.scale), th = Math.round(h * UP.scale);
+    const c = document.createElement('canvas');
+    c.width = tw; c.height = th;
+    const cx = c.getContext('2d');
+    cx.imageSmoothingEnabled = true;
+    cx.imageSmoothingQuality = 'high';
+    cx.drawImage(bmp, 0, 0, tw, th);
+
+    stage.width = tw; stage.height = th;
+    sctx.drawImage(c, 0, 0);
+    off.width = tw; off.height = th;
+    offctx.drawImage(c, 0, 0);
+    S.drawW = tw; S.drawH = th;
+    $('#stageFrame').style.display = '';
+    $('#emptyStage').style.display = 'none';
+    syncMaskSize(tw, th);
+    resetView();
+    $('#upPop').classList.remove('on');
+
+    const dt = performance.now() - t0;
+    $('#resultMeta').innerHTML =
+      `<span>超分 <b>${w}×${h} → ${tw}×${th}</b></span>` +
+      `<span>耗时 <b>${fmtS(dt)}</b></span>` +
+      `<span style="color:var(--violet)">${UP.kind === 'anime' ? '动漫' : '写实'} ×${UP.scale}</span>` +
+      `<span style="margin-left:auto"><a href="#" id="lnkDlUp" style="color:var(--accent);text-decoration:none">下载 PNG</a></span>`;
+
+    const dataUrl = stage.toDataURL('image/png');
+    addHistory(dataUrl, { seed: S.lastSeed, prompt: '(超分)', w: tw, h: th });
+    stage.toBlob(b => autoSaveImage(b, { prompt: '(超分)', seed: S.lastSeed, w: tw, h: th }), 'image/png');
+
+    const dl = $('#lnkDlUp');
+    if (dl) dl.onclick = e => {
+      e.preventDefault();
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `LD_up_${tw}x${th}.png`;
+      a.click();
+    };
+    toast(`超分完成 ${tw}×${th} · ${fmtS(dt)}`, 'ok');
+  }catch(e){
+    toast('超分失败：' + (e.message || e.name), 'err');
+  }finally{
+    UP.running = false;
+    setUpscaleBusy(false);
+    renderUpChips();
+  }
 }
 
 function initControls(){
@@ -2653,6 +3254,42 @@ function initControls(){
     }
   });
 
+  /* ── 栏宽拖拽与说明浮层 ── */
+  initResizers();
+  initTips();
+
+  /* ── 画布右上角：一键图生图 / 超分 ── */
+  $('#btnToI2I').addEventListener('click', canvasToInitImage);
+  $('#btnUpscale').addEventListener('click', e => {
+    e.stopPropagation();
+    const pop = $('#upPop');
+    if (pop.classList.toggle('on')) renderUpChips();
+  });
+  $('#btnRunUpscale').addEventListener('click', runUpscale);
+  document.addEventListener('click', e => {
+    const pop = $('#upPop');
+    if (!pop.classList.contains('on')) return;
+    if (pop.contains(e.target) || e.target.closest('#btnUpscale')) return;
+    pop.classList.remove('on');
+  });
+
+  /* ── 提示词编辑器 ── */
+  $('#btnExpandPrompt').addEventListener('click', openPromptModal);
+  $('#btnClosePrompt').addEventListener('click', closePromptModal);
+  $('#btnCancelPrompt').addEventListener('click', closePromptModal);
+  $('#btnApplyPrompt').addEventListener('click', applyPromptModal);
+  $('#promptModal').addEventListener('click', e => { if (e.target.id === 'promptModal') closePromptModal(); });
+  $('#pmPos').addEventListener('input', updatePmCounts);
+  $('#pmNeg').addEventListener('input', updatePmCounts);
+
+  /* ── 保存分区 ── */
+  bindSwitch($('#cfgSaveMeta'));
+  $$('#segMetaFmt button').forEach(b => b.addEventListener('click', () => {
+    $$('#segMetaFmt button').forEach(x => x.classList.toggle('on', x === b));
+    updateNamePreview();
+  }));
+  $('#cfgNamePattern').addEventListener('input', updateNamePreview);
+
   window.addEventListener('resize', () => { /* canvas 用 CSS 自适应，无需重绘 */ });
 }
 
@@ -2668,6 +3305,10 @@ function fillSettings(){
   $('#cfgShowProc').classList.toggle('on', CFG.showProcess !== false);
   $('#cfgReduceMotion').classList.toggle('on', !!CFG.reduceMotion);
   $('#cfgAutoSave').classList.toggle('on', !!CFG.autoSave);
+  $('#cfgSaveMeta').classList.toggle('on', CFG.saveMeta !== false);
+  $$('#segMetaFmt button').forEach(b => b.classList.toggle('on', b.dataset.fmt === (CFG.metaFmt || 'json')));
+  $('#cfgNamePattern').value = CFG.namePattern || '{date}_{time}_{seed}';
+  updateNamePreview();
   renderSaveState();
   $$('#segMode button').forEach(b => b.classList.toggle('on', b.dataset.mode === CFG.mode));
   $$('#accentSwatches .swatch').forEach(b =>
@@ -2715,6 +3356,10 @@ async function persistSettings(stayOpen){
   CFG.maxHistory = clamp(parseInt($('#cfgMaxHist').value) || 30, 6, 200);
   CFG.reduceMotion = $('#cfgReduceMotion').classList.contains('on');
   CFG.autoSave = $('#cfgAutoSave').classList.contains('on');
+  CFG.saveMeta = $('#cfgSaveMeta').classList.contains('on');
+  const fmtBtn = $$('#segMetaFmt button').find(b => b.classList.contains('on'));
+  CFG.metaFmt = fmtBtn ? fmtBtn.dataset.fmt : 'json';
+  CFG.namePattern = ($('#cfgNamePattern').value || '').trim() || '{date}_{time}_{seed}';
   const sel = $$('#segMode button').find(b => b.classList.contains('on'));
   CFG.mode = sel ? sel.dataset.mode : 'proxy';
 
@@ -2807,6 +3452,7 @@ function escapeHtml(s){
 
 /* ───────────── 启动 ───────────── */
 (async function boot(){
+  applyLayout();
   applyTheme();
   initControls();
   fillSettings();

@@ -67,14 +67,14 @@ python serve.py --host 192.168.1.100    # 换成你手机的局域网 IP
 
 ```bash
 # 1. 设备在不在
-ping 192.168.0.50
+ping 192.168.1.100
 
 # 2. 控制口通不通（这条最关键）
-curl -sS --noproxy '*' http://192.168.0.50:8808/info
-# {"app":"localdream","protocol":1,"version":"3.0.0-alpha.7","device":"AAK-AN00"}
+curl -sS --noproxy '*' http://192.168.1.100:8808/info
+# {"app":"localdream","protocol":1,"version":"3.0.0-alpha.7","device":"<你的机型>"}
 
 # 3. 生成口通不通
-curl -sS --noproxy '*' -m 5 http://192.168.0.50:8081/health
+curl -sS --noproxy '*' -m 5 http://192.168.1.100:8081/health
 ```
 
 页面上的「测试连接」调的是 `serve.py` 的 `/api/diag`，会分别报告两个端口的 TCP 可达性并给出结论，等价于上面第 2、3 步。
@@ -85,7 +85,7 @@ curl -sS --noproxy '*' -m 5 http://192.168.0.50:8081/health
 
 如果本机设了 `http_proxy` / `HTTPS_PROXY` / `all_proxy`，Python 的 `urllib` 会**默认**把所有请求塞进代理。表现是：
 
-- 打开发往 `192.168.0.50:8081` 的请求，收到的却是一个 `502 Bad Gateway`，错误文本是中文 Windows 报错 `os error 10061` —— 这是**本机代理**伪装出来的响应，不是设备返回的；
+- 打开发往 `192.168.1.100:8081` 的请求，收到的却是一个 `502 Bad Gateway`，错误文本是中文 Windows 报错 `os error 10061` —— 这是**本机代理**伪装出来的响应，不是设备返回的；
 - 更糟的是它会把一个「端口没开」误报成「HTTP 502」，把排查带偏。
 
 `serve.py` 已经用 `ProxyHandler({})` 显式禁用代理，转发永远直连局域网设备。自己写脚本排障时记得加 `curl --noproxy '*'`。
@@ -127,6 +127,7 @@ curl -sS --noproxy '*' -m 5 http://192.168.0.50:8081/health
 | token 计数（77 上限，超限标红） | `POST /tokenize {prompt}` → `{count,max_length,overflow_offset}` | 官方参考 `POST /tokenize`；`ld-api` `TokenizeResult` |
 | 图生图 | 传 `image` = base64 编码的 **PNG/JPG 字节**（不是裸 RGB），并附 `denoise_strength` | 官方参考 `image` / `denoise_strength` 字段 |
 | 局部重绘 | 同时传 `image` + `mask`（base64 PNG） | 官方参考 `mask` 字段 |
+| 图像超分 | `POST :8081/upscale`：body 为**裸 RGB24**（长度必须等于 W×H×3），请求头 `X-Image-Width` / `X-Image-Height` / `X-Upscaler-Path`，返回 `image/jpeg`，**固定 ×4** | **官方文档未收录**，由实测逐层试探确定（见下文） |
 | 错误提示（400 非流式 / 流内 error） | 两条路径都处理：`Content-Type` 不是 `text/event-stream` 时按 JSON 错误体解析；否则监听 `error` 事件 | `ld-api` `generateImage` 的错误分支实现 |
 | OpenCL 开关（仅 CPU 模型显示） | `use_opencl`，NPU 下该字段被接受但不起作用 | 官方参考「SD1.5 — CPU / NPU 模式」 |
 
@@ -175,7 +176,7 @@ curl -sS --noproxy '*' -m 5 http://192.168.0.50:8081/health
 
 ## 五、边界与假设
 
-- **未实现 `upscale` / `ultrafix`。** 这两个能力只在第三方插件里被提及，官方 HTTP API 参考未收录（`POST /upscale` 为 raw RGB body），不属于「受控模式已文档化接口」，因此本前端不接入。
+- **`ultrafix`（分块重绘）未接入。** 它只在第三方插件里出现，且仅 SD1.5 / SDXL 的 QNN 后端支持，MNN / Anima / DiT 会直接报错。超分（`/upscale`）已接入，协议见上表。
 - **不会自动挂载模型。** 设备上可能存在加载失败的模型（实测 `anima_base_v1_turbo` 在 alpha.7 上直接 `Backend process exited with code: 1`）。自动挂载会平白触发一次后端崩溃，所以启动后只同步 `/status` 里已经在跑的模型，其余等用户点。
 - **不同模型的速度差异极大。** 同一台机器 6 步实测：`anythingv5` 2.6 秒、`illustrious_v16` 19.5 秒、`z_image_turbo` 186 秒。前端不做超时限制，长任务靠「取消生成」中断。
 - **蒙版极性是经验约定。** 官方只写「base64 编码的 PNG/JPG 蒙版」，未规定黑白语义。当前实现导出**白 = 重绘区、黑 = 保留**。若你的后端相反，改 `exportMaskB64()` 里 `const on = src[i+3] > 24 ? 255 : 0;` 一行即可翻转。
@@ -199,23 +200,29 @@ curl -sS --noproxy '*' -m 5 http://192.168.0.50:8081/health
 
 | 分区 | 内容 |
 |---|---|
-| **连接** | 实时连接状态条（设备 / 地址 / 刷新）、连接方式、手机地址、控制口与生成口、**保存并测试连接** |
+| **连接** | 实时连接状态条、连接方式、手机地址、双端口、保存并测试连接 |
 | **生成** | 默认反向提示词、默认开启过程预览、默认预览步幅、历史保留上限 |
 | **外观** | 主题（深色 / OLED 纯黑 / 浅色 / 跟随系统）、强调色 + 色板 + 从图片取色、减少动效 |
-| **配置** | 生成后自动保存（目录授权）、配置 JSON 导出 / 导入、本地存储统计、清空历史 |
-| **关于** | 运行时信息（连接方式 / 设备 / App 版本 / 协议 / 可用模型 / 当前挂载 / 后端状态）、接口依据链接 |
+| **保存** | 自动保存目录、保存提示词与参数、元数据格式（JSON / TXT）、命名规则 |
+| **配置** | 配置 JSON 导出 / 导入、本地存储统计、清空历史 |
+| **关于** | 项目地址与作者、运行时信息、接口依据 |
+
+每个选项旁边的 **ⓘ** 图标可悬停或点击查看说明，不再把大段解释堆在界面上。
 
 底部固定「恢复默认 / 取消 / 保存」。「保存并测试连接」会先落盘再逐个探测 8808 与 8081，直接告诉你哪个口不通。
 
 配置存在浏览器 `localStorage`（键 `ldstudio.config.v1`），导出 / 导入走同一份 JSON。窄屏（<760px）下左侧导航自动折叠成顶部横向标签。
 
-### 生成后自动保存
+### 自动保存与元数据
 
-在「配置 → 生成后自动保存」里点「选择文件夹」，浏览器会弹出目录授权框（`showDirectoryPicker`）。授权后每张出图都会自动写入该目录，文件名 `LD_YYYYMMDD_HHMMSS_<seed>.png`。
+「保存」分区里点「选择文件夹」授权目录后，每张出图会自动写入，并可同时写一个同名元数据文件。
 
-- 目录句柄存在 IndexedDB 里，刷新页面不用重选；但浏览器可能在重启后要求再确认一次权限，届时会提示「目录权限已失效」。
-- 页面只能写进你亲手点选的那个文件夹，读不到其中其他内容。
-- 仅 Chromium 系（Chrome / Edge）支持。Firefox / Safari 没有该 API，设置里会直接标注不支持并禁用按钮。
+命名规则支持占位符：`{date}` `{time}` `{seed}` `{model}` `{w}` `{h}` `{index}`，默认 `{date}_{time}_{seed}`。规则下方有实时预览，非法字符会被替换成下划线。
+
+元数据格式二选一：
+
+- **JSON**：`{"prompt": "...", "negative_prompt": "...", "seed": 123, "steps": 20, "cfg": 7.5, "scheduler": "dpm", "model": "...", "width": 1024, "height": 1024, "created": "...", "generator": "..."}`
+- **TXT**：同样的键值对，一行一个，便于直接翻看。
 
 ### 主题与配色
 
@@ -239,6 +246,13 @@ curl -sS --noproxy '*' -m 5 http://192.168.0.50:8081/health
 
 尺寸适配由 JS 计算「contain 比例」后施加 `transform: scale()`，而不是依赖 CSS 的 `max-width/max-height` 百分比——后者在 flex 容器里遇到内容尺寸不确定的情况会失效，导致宽高比与窗口不符的图片直接显示不出来。现在任意比例都会正确铺满且保持比例。
 
+画布右上角还有两个快捷操作：
+
+- **一键图生图**：把当前画面按目标尺寸居中裁切后直接作为 img2img 底图，并自动切到图生图页签，省去导出再上传。
+- **超分**：见下。
+
+三栏宽度可用中缝手柄拖动调整（双击复位），宽度记在配置里。
+
 ---
 
 ## 七·六、模型分类
@@ -250,3 +264,26 @@ curl -sS --noproxy '*' -m 5 http://192.168.0.50:8081/health
 ### 种子行为
 
 生成结束后，若**未锁定**种子，输入框会自动换成一个新的随机值——不用再手动点骰子。本次实际用的种子显示在结果栏，点「固种重跑」会把它填回输入框再跑一遍。锁定后则完全不动，适合固定构图只改提示词。
+
+---
+
+## 七·七、图像超分
+
+`/upscale` 不在官方 HTTP API 参考里，协议是实测逐层试探出来的：先发一个请求，后端依次报缺哪个参数，一路补齐即得到完整契约。
+
+```
+POST http://<ip>:8081/upscale
+Content-Type: application/octet-stream
+X-Image-Width: 1024
+X-Image-Height: 1024
+X-Upscaler-Path: /storage/emulated/0/Download/LocalDream/models/upscaler_anime/upscaler.bin
+
+<裸 RGB24 字节，长度必须等于 W×H×3>
+```
+
+- 响应是 `image/jpeg`，**固定放大 4 倍**（512→2048、1024→4096，实测分别是 1 秒与 3 秒）。
+- 显式传 `X-Scale` 一类的头没有效果，倍率由放大器模型自己决定。
+- 传 PNG / JPEG 字节会报 `Image data size mismatch`，必须是裸 RGB。
+- 放大器清单来自 `GET :8808/models` 的 `upscalers[]`（`{id, path}`），`path` 就是上面那个头要填的值。
+
+界面上提供「动漫 / 写实」两种类型与 2× / 3× / 4× 三档倍率。类型按放大器 id 匹配（`anime` / `real|photo|general`），设备上没装的那类会置灰；2× / 3× 是先取模型原生的 4× 结果再用浏览器高质量降采样——比直接插值到小倍率更干净。
