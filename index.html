@@ -161,7 +161,8 @@ body.col-resizing .resizer{pointer-events:auto}
   display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:650;letter-spacing:1.1px;
   text-transform:uppercase;color:var(--text-faint);margin:0 0 9px;
 }
-.sec-title::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+.sec-title::after{content:'';order:2;flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+.sec-title .sec-gear{order:3;flex:0 0 auto;width:20px;height:20px;margin-left:6px}
 .sec-title .hint{font-size:10px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--text-faint)}
 
 /* ─────────────────────────── 左：模型 ─────────────────────────── */
@@ -352,6 +353,31 @@ html[data-theme="light"] .hud-chip{background:rgba(255,255,255,.82);border-color
 
 .result-meta{display:flex;gap:12px;flex-wrap:wrap;padding:7px 13px 0;font-size:10.5px;color:var(--text-faint);font-family:var(--font);min-height:22px}
 .result-meta b{color:var(--text-dim);font-weight:500}
+.copyable{cursor:pointer;border-bottom:1px dashed var(--line-strong);transition:.15s}
+.copyable:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.meta-prompt{
+  display:flex;align-items:baseline;gap:7px;padding:5px 13px 2px;font-size:10.5px;
+  color:var(--text-faint);min-height:20px;
+}
+.mp-text{
+  flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-dim);
+  line-height:1.5;cursor:pointer;
+}
+.meta-prompt.open .mp-text{white-space:pre-wrap;word-break:break-word;max-height:132px;overflow-y:auto}
+.mp-btn{
+  flex:0 0 auto;height:20px;padding:0 7px;border-radius:5px;border:1px solid var(--line);
+  background:var(--panel-2);color:var(--text-faint);font-size:10px;font-family:inherit;
+  cursor:pointer;transition:.15s;
+}
+.mp-btn:hover{color:var(--accent);border-color:rgba(var(--accent-rgb),.5)}
+.file-warn{
+  display:none;align-items:flex-start;gap:9px;padding:10px 13px;border-radius:var(--r-md);
+  background:rgba(255,184,77,.1);border:1px solid rgba(255,184,77,.4);color:var(--warn);
+  font-size:11.5px;line-height:1.65;flex:0 0 auto;
+}
+.file-warn.on{display:flex}
+.file-warn code{background:rgba(0,0,0,.25);padding:1px 5px;border-radius:4px;font-size:10.5px}
+.file-warn b{color:#ffd08a}
 
 /* 提示词区 */
 .prompt-zone{flex:0 0 auto;padding:9px 13px 13px;display:flex;flex-direction:column;gap:9px}
@@ -420,7 +446,13 @@ html[data-theme="light"] .tab.on{box-shadow:0 1px 4px rgba(16,24,40,.12)}
 .param{display:flex;flex-direction:column;gap:5px;margin-bottom:13px}
 .param:last-child{margin-bottom:0}
 .param-head{display:flex;align-items:center;justify-content:space-between;font-size:11.5px;color:var(--text-dim)}
-.param-head .val{font-family:var(--font);font-size:11.5px;color:var(--text);font-weight:600}
+.param-head .val{font-family:var(--font);font-size:11.5px;color:var(--text);font-weight:600;cursor:text;border-bottom:1px dashed transparent;transition:.15s;padding:0 2px}
+.param-head .val:hover{border-bottom-color:var(--line-strong);color:var(--accent)}
+.val-input{
+  width:58px;height:20px;padding:0 5px;border-radius:5px;border:1px solid rgba(var(--accent-rgb),.7);
+  background:var(--panel-2);color:var(--text);font-family:var(--font);font-size:11.5px;
+  font-weight:600;text-align:right;outline:none;
+}
 input[type=range]{
   -webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:99px;outline:none;
   background:linear-gradient(90deg,var(--accent) var(--p,50%),var(--line-strong) var(--p,50%));
@@ -485,7 +517,7 @@ select:focus,input[type=text]:focus,input[type=number]:focus{border-color:rgba(v
 .drop b{display:block;color:var(--text-dim);font-size:11.5px;margin-bottom:2px}
 
 /* 历史 */
-.history{display:grid;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));gap:6px}
+.history{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--hist,88px),1fr));gap:7px}
 .hist-item{
   position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;border:1px solid var(--line);
   cursor:pointer;transition:.16s var(--ease);background:var(--panel-2);
@@ -721,6 +753,14 @@ html.no-anim *{transition:none!important;animation:none!important}
     </button>
   </header>
 
+  <div class="file-warn" id="fileWarn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:16px;height:16px;flex:0 0 auto;margin-top:2px"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+    <div>
+      <b>页面是直接打开的本地文件（file://）</b>，同源代理不可用——<code>/p/8808</code> 这类接口路径在文件协议下不存在，请求会直接失败。
+      请改用命令行启动：<code>python serve.py --host 手机IP</code>，再访问 <code>http://127.0.0.1:8777</code>。
+    </div>
+  </div>
+
   <main class="studio">
     <!-- ─── 左栏 ─── -->
     <aside class="col col-left">
@@ -737,7 +777,11 @@ html.no-anim *{transition:none!important;animation:none!important}
           </div>
         </section>
         <section>
-          <h4 class="sec-title">历史 <span class="hint" id="histCount"></span></h4>
+          <h4 class="sec-title">历史 <span class="hint" id="histCount"></span>
+            <button class="mini-btn sec-gear" id="btnHistSettings" title="历史设置">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.14.5.55.9 1.06 1.06H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </button>
+          </h4>
           <div class="history" id="history"></div>
         </section>
       </div>
@@ -816,6 +860,11 @@ html.no-anim *{transition:none!important;animation:none!important}
       </div>
 
       <div class="result-meta" id="resultMeta"></div>
+      <div class="meta-prompt" id="metaPrompt" style="display:none">
+        <span class="mp-text" id="metaPromptText"></span>
+        <button class="mp-btn" id="btnMetaExpand">展开</button>
+        <button class="mp-btn" id="btnMetaCopy">复制</button>
+      </div>
 
       <div class="prompt-zone">
         <div class="tabs">
@@ -920,7 +969,7 @@ html.no-anim *{transition:none!important;animation:none!important}
           <input type="file" id="fileInput" accept="image/*" style="display:none">
           <div class="param" style="margin-top:9px">
             <div class="param-head"><span>去噪强度 denoise</span><span class="val" id="denoiseVal">0.60</span></div>
-            <input type="range" id="denoise" min="0" max="1" step="0.05" value="0.6">
+            <input type="range" id="denoise" min="0" max="1" step="0.01" value="0.6">
           </div>
           <div id="maskTools" style="display:none;margin-top:6px">
             <div class="param">
@@ -965,6 +1014,7 @@ html.no-anim *{transition:none!important;animation:none!important}
       <button class="sn-item active" data-sec="conn">连接<small>模式 · 地址 · 端口</small></button>
       <button class="sn-item" data-sec="gen">生成<small>提示词 · 预览</small></button>
       <button class="sn-item" data-sec="ui">外观<small>主题 · 强调色</small></button>
+      <button class="sn-item" data-sec="hist">历史<small>缩略图 · 清理</small></button>
       <button class="sn-item" data-sec="save">保存<small>目录 · 元数据 · 命名</small></button>
       <button class="sn-item" data-sec="data">配置<small>导入导出 · 历史</small></button>
       <button class="sn-item" data-sec="about">关于<small>项目 · 接口依据</small></button>
@@ -1017,7 +1067,10 @@ html.no-anim *{transition:none!important;animation:none!important}
 
           <div class="sgroup">
             <label class="field-label">连通性自检<span class="info" data-tip="分别对 8808 与 8081 做 TCP 探测，并读取 /info 校验是不是 Local Dream。">i</span></label>
-            <button class="btn" id="btnSaveTest">保存并测试连接</button>
+            <div style="display:flex;gap:8px">
+              <button class="btn" id="btnSaveConn" style="flex:1">保存</button>
+              <button class="btn" id="btnTestConn" style="flex:1">测试连接</button>
+            </div>
             <div class="shelp" id="diagOut">尚未检测</div>
           </div>
         </div>
@@ -1037,10 +1090,6 @@ html.no-anim *{transition:none!important;animation:none!important}
           <div class="sgroup">
             <label class="field-label">默认预览步幅<span class="info" data-tip="每 N 步回传一次预览。步幅越大流量越小，画面跳变越明显。">i</span></label>
             <input type="number" id="cfgStride" min="1" max="20" value="1">
-          </div>
-          <div class="sgroup">
-            <label class="field-label">历史保留上限<span class="info" data-tip="超出后丢弃最旧的一张。历史只存在内存里，刷新页面即清空。">i</span></label>
-            <input type="number" id="cfgMaxHist" min="6" max="200" value="30">
           </div>
         </div>
 
@@ -1073,7 +1122,29 @@ html.no-anim *{transition:none!important;animation:none!important}
           </div>
         </div>
 
-        <!-- ④ 保存 -->
+        <!-- ④ 历史 -->
+        <div class="sec-pane" data-pane="hist">
+          <div class="sgroup">
+            <label class="field-label">预览图大小<span class="info" data-tip="缩略图的最小边长，实际会按列宽铺满。调大后每行能放的张数会变少。">i</span></label>
+            <div class="param" style="margin:0">
+              <div class="param-head"><span>缩略图边长</span><span class="val" id="cfgHistSizeVal">88</span></div>
+              <input type="range" id="cfgHistSize" min="56" max="128" step="4" value="88">
+            </div>
+          </div>
+          <div class="sgroup">
+            <label class="field-label">保留上限<span class="info" data-tip="超出后丢弃最旧的一张。历史只存在内存里，刷新页面即清空。">i</span></label>
+            <input type="number" id="cfgMaxHist" min="6" max="200" value="30">
+          </div>
+          <div class="sgroup">
+            <label class="field-label">本地数据</label>
+            <div class="about-row"><span>历史作品</span><b id="statHist">0 张</b></div>
+            <div class="about-row"><span>配置占用</span><b id="statCfg">—</b></div>
+            <button class="btn danger" id="btnClearHistory" style="margin-top:9px">清空历史作品</button>
+            <div class="shelp">只清当前会话内存里的缩略图，不影响设备与磁盘上的任何文件。</div>
+          </div>
+        </div>
+
+        <!-- ⑤ 保存 -->
         <div class="sec-pane" data-pane="save">
           <div class="sgroup">
             <div class="switch-row">
@@ -1109,7 +1180,7 @@ html.no-anim *{transition:none!important;animation:none!important}
           </div>
         </div>
 
-        <!-- ⑤ 配置 -->
+        <!-- ⑥ 配置 -->
         <div class="sec-pane" data-pane="data">
           <div class="sgroup">
             <label class="field-label">配置备份<span class="info" data-tip="包含连接方式、地址、端口、主题、保存设置与生成偏好，不含任何作品图。">i</span></label>
@@ -1118,13 +1189,6 @@ html.no-anim *{transition:none!important;animation:none!important}
               <button class="btn" id="btnImportCfg" style="flex:1">导入 JSON</button>
               <input type="file" id="fileCfg" accept=".json" style="display:none">
             </div>
-          </div>
-          <div class="sgroup">
-            <label class="field-label">本地数据</label>
-            <div class="about-row"><span>历史作品</span><b id="statHist">0 张</b></div>
-            <div class="about-row"><span>配置占用</span><b id="statCfg">—</b></div>
-            <button class="btn danger" id="btnClearHistory" style="margin-top:9px">清空历史作品</button>
-            <div class="shelp">只清当前会话内存里的缩略图，不影响设备与磁盘上的任何文件。</div>
           </div>
           <div class="sgroup">
             <label class="field-label">诊断日志<span class="info" data-tip="记录每一次请求的状态码与耗时、连接与生成事件、以及页面报错。遇到问题时导出这份文件即可定位。">i</span></label>
@@ -1136,7 +1200,7 @@ html.no-anim *{transition:none!important;animation:none!important}
           </div>
         </div>
 
-        <!-- ⑥ 关于 -->
+        <!-- ⑦ 关于 -->
         <div class="sec-pane" data-pane="about">
           <div class="sgroup">
             <label class="field-label">项目</label>
@@ -1248,6 +1312,7 @@ const DEFAULT_CFG = {
   saveMeta: true,
   metaFmt: 'json',
   namePattern: '{date}_{time}_{seed}',
+  histSize: 88,
   colLeft: 294,
   colRight: 340
 };
@@ -1427,6 +1492,7 @@ function updateNamePreview(){
   const fmt = fmtBtn ? fmtBtn.dataset.fmt : (CFG.metaFmt || 'json');
   const saved = CFG.namePattern;
   CFG.namePattern = ($('#cfgNamePattern').value || '').trim() || '{date}_{time}_{seed}';
+  CFG.histSize = clamp(parseInt($('#cfgHistSize').value) || 88, 56, 128);
   const base = buildBaseName({});
   CFG.namePattern = saved;
   const metaOn = $('#cfgSaveMeta').classList.contains('on');
@@ -1677,8 +1743,15 @@ async function ctlFetch(path, opt){
 /* ───────────── 连接 ───────────── */
 function setConn(state, text){
   const dot = $('#connDot');
-  dot.className = 'dot ' + state;
-  $('#connText').textContent = text;
+  if (dot) dot.className = 'dot ' + state;
+  const t = $('#connText');
+  if (t) t.textContent = text;
+  // 设置面板开着时，状态条同步刷新（否则要重开面板才更新）
+  const modal = $('#settingsModal');
+  if (modal && modal.classList.contains('on')){
+    renderConnStatus();
+    renderAbout();
+  }
 }
 
 /** 代理模式下如果页面没填地址，试着从 serve.py 的启动参数里取 */
@@ -1724,13 +1797,39 @@ function renderOnboarding(){
 }
 
 /** 「测试连接」：分别探测控制口与生成口，给出可执行的结论 */
+const IS_FILE = location.protocol === 'file:';
+
+function diagOut(msg, cls){
+  const el = $('#diagOut');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'shelp' + (cls ? ' ' + cls : '');
+}
+
 async function diagnose(){
   if (CFG.mode === 'demo'){ enterDemo(); return; }
   if (!CFG.host) await resolveHostFromServer();
-  if (!CFG.host){ toast('先在设置里填写手机 IP', 'warn'); openSettings(); return; }
-  if (CFG.mode !== 'proxy'){ await connect(false); return; }
+  if (!CFG.host){
+    diagOut('请先填写手机 IP');
+    toast('先在设置里填写手机 IP', 'warn');
+    return;
+  }
+  if (CFG.mode !== 'proxy'){
+    diagOut('直连模式：正在直接请求设备…');
+    await connect(false);
+    return;
+  }
+  if (IS_FILE){
+    const m = '页面是 file:// 打开的，代理接口 /p/... 不存在。请用 python serve.py 启动后访问 http://127.0.0.1:8777';
+    setConn('off', '需要本地服务');
+    diagOut(m);
+    log('error', '诊断失败：file 协议下无法使用代理', { href: location.href });
+    toast(m, 'err');
+    return;
+  }
 
   setConn('wait', '检测中…');
+  diagOut('正在探测 8808 / 8081…');
   try{
     const r = await fetch('/api/diag?host=' + encodeURIComponent(CFG.host));
     const d = await r.json();
@@ -1738,8 +1837,10 @@ async function diagnose(){
     const genOk = !!(d.gen && d.gen.tcp);
 
     if (!ctlOk){
+      S.info = null;
       setConn('off', '控制口不可达');
       $('#devInfo').innerHTML = `<div class="warn-line">${escapeHtml(d.hint || '控制口 8808 不可达')}</div>`;
+      diagOut(d.hint || '控制口 8808 不可达');
       toast('控制口 8808 不可达', 'err');
       return;
     }
@@ -1748,10 +1849,17 @@ async function diagnose(){
     setConn(genOk ? 'on' : 'wait', genOk ? `已连接 · v${S.info ? S.info.version : ''}` : '控制口就绪 · 生成口待启动');
     await loadModels();
     await refreshStatus();
+    diagOut(genOk ? `两个端口都就绪 · ${S.info ? S.info.device : ''}` : '控制口就绪，生成口未监听：选一个模型即可启动');
     toast(genOk ? '两个端口都就绪' : '生成口未监听，选一个模型即可启动', genOk ? 'ok' : 'warn');
   }catch(e){
+    S.info = null;
     setConn('off', '检测失败');
-    toast('检测失败：' + e.message, 'err');
+    const m = (e && e.name === 'TypeError')
+      ? '无法访问本地服务。请确认已运行 python serve.py，并通过 http://127.0.0.1:8777 打开页面。'
+      : (e.message || String(e));
+    diagOut(m);
+    log('error', '诊断失败：' + m, { host: CFG.host });
+    toast('检测失败：' + m, 'err');
   }
 }
 
@@ -1780,8 +1888,14 @@ async function connect(silent){
     return true;
   }catch(e){
     if (stale()) return false;
-    const msg = (e && e.name === 'AbortError') ? '连接超时，设备无响应' : (e.message || String(e));
-    log('error', '连接失败：' + msg, { host: CFG.host, mode: CFG.mode });
+    let msg = (e && e.name === 'AbortError') ? '连接超时，设备无响应' : (e.message || String(e));
+    if (IS_FILE && CFG.mode === 'proxy'){
+      msg = '页面是 file:// 打开的，/p/ 代理接口不存在。请改用 python serve.py 启动并访问 http://127.0.0.1:8777';
+    } else if (e && e.name === 'TypeError' && CFG.mode === 'proxy'){
+      msg = '连不上本地服务（' + location.origin + '）。请确认 serve.py 正在运行，且页面是通过它打开的。';
+    }
+    log('error', '连接失败：' + msg, { host: CFG.host, mode: CFG.mode, href: location.href });
+    S.info = null;          // 旧的设备信息必须失效，否则设置里的状态条会继续显示「已连接」
     setConn('off', '连接失败');
     if (!silent) toast('连接失败：' + msg, 'err');
     $('#devInfo').innerHTML = `<div class="warn-line">${escapeHtml(msg)}<br>请确认 App 内已「进入受控模式」，且地址端口可达。</div>`;
@@ -2513,7 +2627,7 @@ function finishGeneration(final, body){
   if (!S.seedLocked) $('#seedInput').value = randU32();
 
   $('#resultMeta').innerHTML =
-    `<span>seed <b>${seed}</b></span>` +
+    `<span>seed <b class="copyable" data-copy="${seed}" data-copy-label="已复制种子">${seed}</b></span>` +
     `<span>尺寸 <b>${final.width}×${final.height}</b></span>` +
     `<span>首步 <b>${fmtS(final.first_step_time_ms || 0)}</b></span>` +
     `<span>总耗时 <b>${fmtS(final.generation_time_ms || 0)}</b></span>` +
@@ -2522,6 +2636,8 @@ function finishGeneration(final, body){
        <a href="#" id="lnkReuse" style="color:var(--accent);text-decoration:none">固种重跑</a>
      </span>`;
 
+  showMetaPrompt(body.prompt || '');
+  bindCopyables($('#resultMeta'));
   const dataUrl = stage.toDataURL('image/png');
   addHistory(dataUrl, { seed, prompt: body.prompt, w: final.width, h: final.height });
   stage.toBlob(b => autoSaveImage(b, {
@@ -2582,7 +2698,20 @@ function renderHistory(){
         $('#stageFrame').style.display = '';
         $('#emptyStage').style.display = 'none';
         $('#hudModel').textContent = `${img.width}×${img.height} · 历史`;
-        $('#resultMeta').innerHTML = `<span>seed <b>${it.meta.seed}</b></span><span style="color:var(--text-faint)">${escapeHtml(it.meta.prompt || '').slice(0, 60)}</span>`;
+        $('#resultMeta').innerHTML =
+          `<span>seed <b class="copyable" data-copy="${escapeHtml(String(it.meta.seed))}" data-copy-label="已复制种子">${it.meta.seed}</b></span>` +
+          `<span>尺寸 <b>${img.width}×${img.height}</b></span>` +
+          `<span style="margin-left:auto"><a href="#" id="lnkHistDl" style="color:var(--accent);text-decoration:none">下载 PNG</a></span>`;
+        showMetaPrompt(it.meta.prompt || '');
+        bindCopyables($('#resultMeta'));
+        const lnk = $('#lnkHistDl');
+        if (lnk) lnk.onclick = e => {
+          e.preventDefault();
+          const a = document.createElement('a');
+          a.href = it.dataUrl;
+          a.download = `LD_${it.meta.seed}_${img.width}x${img.height}.png`;
+          a.click();
+        };
         resetView();
       };
       img.src = it.dataUrl;
@@ -2755,12 +2884,14 @@ function finishGenerationDemo(final, body){
   if (!S.seedLocked) $('#seedInput').value = randU32();
   S.lastSeed = final.seed;
   $('#resultMeta').innerHTML =
-    `<span>seed <b>${final.seed}</b></span>` +
+    `<span>seed <b class="copyable" data-copy="${final.seed}" data-copy-label="已复制种子">${final.seed}</b></span>` +
     `<span>尺寸 <b>${final.width}×${final.height}</b></span>` +
     `<span>首步 <b>${fmtS(final.first_step_time_ms)}</b></span>` +
     `<span>总耗时 <b>${fmtS(final.generation_time_ms)}</b></span>` +
     `<span style="color:var(--violet)">演示合成</span>` +
     `<span style="margin-left:auto"><a href="#" id="lnkDl2" style="color:var(--accent);text-decoration:none">下载 PNG</a></span>`;
+  showMetaPrompt(body.prompt || '');
+  bindCopyables($('#resultMeta'));
   const dataUrl = stage.toDataURL('image/png');
   addHistory(dataUrl, { seed: final.seed, prompt: body.prompt, w: final.width, h: final.height });
   stage.toBlob(b => autoSaveImage(b, {
@@ -2823,6 +2954,91 @@ function applyLayout(){
   CFG.colLeft = l; CFG.colRight = r;
   document.documentElement.style.setProperty('--col-left', l + 'px');
   document.documentElement.style.setProperty('--col-right', r + 'px');
+}
+
+function applyHistSize(){
+  const v = clamp(parseInt(CFG.histSize) || 88, 56, 128);
+  CFG.histSize = v;
+  document.documentElement.style.setProperty('--hist', v + 'px');
+}
+
+/* ═════════════ 复制与提示词展示 ═════════════ */
+async function copyText(txt, label){
+  const val = String(txt == null ? '' : txt);
+  if (!val) return;
+  try{
+    await navigator.clipboard.writeText(val);
+    toast((label || '已复制') + '：' + (val.length > 24 ? val.slice(0, 24) + '…' : val), 'ok');
+  }catch{
+    const ta = document.createElement('textarea');
+    ta.value = val;
+    ta.style.cssText = 'position:fixed;top:-999px;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try{ ok = document.execCommand('copy'); }catch{}
+    ta.remove();
+    toast(ok ? (label || '已复制') : '复制失败，请手动选择文本', ok ? 'ok' : 'err');
+  }
+}
+
+function showMetaPrompt(text){
+  const box = $('#metaPrompt');
+  if (!box) return;
+  if (!text){ box.style.display = 'none'; return; }
+  box.style.display = '';
+  box.classList.remove('open');
+  $('#metaPromptText').textContent = text;
+  $('#btnMetaExpand').textContent = '展开';
+}
+
+/** 给结果区内带 data-copy 的元素挂复制 */
+function bindCopyables(root){
+  (root || document).querySelectorAll('[data-copy]').forEach(el => {
+    if (el.dataset.bound) return;
+    el.dataset.bound = '1';
+    el.addEventListener('click', e => {
+      e.preventDefault();
+      copyText(el.dataset.copy, el.dataset.copyLabel || '已复制');
+    });
+  });
+}
+
+/* ═════════════ 滑杆数值可编辑 ═════════════ */
+function makeEditableNum(valEl, rangeEl, opt){
+  if (!valEl || !rangeEl) return;
+  valEl.title = '点击直接输入';
+  valEl.addEventListener('click', () => {
+    if (valEl.dataset.editing) return;
+    valEl.dataset.editing = '1';
+    const inp = document.createElement('input');
+    inp.className = 'val-input';
+    inp.type = 'text';
+    inp.inputMode = 'decimal';
+    inp.value = valEl.textContent.trim();
+    valEl.replaceWith(inp);
+    inp.focus();
+    inp.select();
+
+    const commit = ok => {
+      if (!inp.isConnected) return;
+      let v = parseFloat(inp.value);
+      delete valEl.dataset.editing;
+      // 先还原显示元素，再派发 input —— 否则监听器里的 $('#xxxVal') 取到的是已被替换掉的节点
+      inp.replaceWith(valEl);
+      if (ok && isFinite(v)){
+        v = clamp(v, opt.min, opt.max);
+        if (!opt.decimals) v = Math.round(v);
+        rangeEl.value = v;
+        rangeEl.dispatchEvent(new Event('input'));
+      }
+    };
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter'){ e.preventDefault(); commit(true); }
+      else if (e.key === 'Escape'){ e.preventDefault(); commit(false); }
+    });
+    inp.addEventListener('blur', () => commit(true));
+  });
 }
 
 function initResizers(){
@@ -3190,6 +3406,9 @@ async function runUpscale(){
 }
 
 function initControls(){
+  makeEditableNum($('#stepsVal'), $('#steps'), { min: 1, max: 60, decimals: 0 });
+  makeEditableNum($('#cfgVal'), $('#cfg'), { min: 0, max: 20, decimals: 1 });
+  makeEditableNum($('#denoiseVal'), $('#denoise'), { min: 0, max: 1, decimals: 2 });
   $('#steps').addEventListener('input', e => { $('#stepsVal').textContent = e.target.value; setRangeFill(e.target); });
   $('#cfg').addEventListener('input', e => { $('#cfgVal').textContent = (+e.target.value).toFixed(1); setRangeFill(e.target); });
   $('#stride').addEventListener('input', e => {
@@ -3392,11 +3611,31 @@ function initControls(){
   }));
 
   $('#btnSaveCfg').addEventListener('click', () => persistSettings(false));
-  $('#btnSaveTest').addEventListener('click', async () => {
+  $('#btnSaveConn').addEventListener('click', () => persistSettings(false));
+  $('#btnTestConn').addEventListener('click', async () => {
     await persistSettings(true);
     closeSettings();
     await diagnose();
   });
+
+  // 历史区齿轮：直接跳到设置的历史分区
+  $('#btnHistSettings').addEventListener('click', () => openSettings('hist'));
+  $('#cfgHistSize').addEventListener('input', e => {
+    const v = clamp(parseInt(e.target.value) || 88, 56, 128);
+    $('#cfgHistSizeVal').textContent = v;
+    setRangeFill(e.target);
+    CFG.histSize = v;
+    applyHistSize();
+  });
+
+  // 结果区提示词：展开 / 复制
+  $('#btnMetaExpand').addEventListener('click', () => {
+    const box = $('#metaPrompt');
+    const open = box.classList.toggle('open');
+    $('#btnMetaExpand').textContent = open ? '收起' : '展开';
+  });
+  $('#btnMetaCopy').addEventListener('click', () => copyText($('#metaPromptText').textContent, '已复制提示词'));
+  $('#metaPromptText').addEventListener('click', () => $('#btnMetaExpand').click());
 
   $('#btnResetCfg').addEventListener('click', () => {
     CFG = Object.assign({}, DEFAULT_CFG);
@@ -3505,6 +3744,9 @@ function fillSettings(){
   $$('#segMetaFmt button').forEach(b => b.classList.toggle('on', b.dataset.fmt === (CFG.metaFmt || 'json')));
   $('#cfgNamePattern').value = CFG.namePattern || '{date}_{time}_{seed}';
   updateNamePreview();
+  $('#cfgHistSize').value = CFG.histSize || 88;
+  $('#cfgHistSizeVal').textContent = CFG.histSize || 88;
+  setRangeFill($('#cfgHistSize'));
   renderSaveState();
   $$('#segMode button').forEach(b => b.classList.toggle('on', b.dataset.mode === CFG.mode));
   $$('#accentSwatches .swatch').forEach(b =>
@@ -3561,6 +3803,7 @@ async function persistSettings(stayOpen){
 
   saveCfg();
   applyTheme();
+  applyHistSize();
   applyCfgToPanel();
   fillSettings();
   if (!$('#negPrompt').value) $('#negPrompt').value = CFG.negative;
@@ -3602,7 +3845,14 @@ function renderAbout(){
   $('#snVersion').textContent = i ? `v${i.version}` : (CFG.mode === 'demo' ? 'DEMO' : '未连接');
 }
 
-function openSettings(){ fillSettings(); $('#settingsModal').classList.add('on'); }
+function openSettings(sec){
+  fillSettings();
+  $('#settingsModal').classList.add('on');
+  if (sec){
+    const btn = document.querySelector('.sn-item[data-sec="' + sec + '"]');
+    if (btn) btn.click();
+  }
+}
 function closeSettings(){ $('#settingsModal').classList.remove('on'); }
 
 function loadInitFile(file){
@@ -3650,8 +3900,14 @@ function escapeHtml(s){
 (async function boot(){
   installFetchLog();
   applyLayout();
+  applyHistSize();
   applyTheme();
   log('info', '页面启动', { url: location.href, mode: CFG.mode, ua: navigator.userAgent.slice(0, 80) });
+  if (IS_FILE){
+    const fw = $('#fileWarn');
+    if (fw) fw.classList.add('on');
+    log('warn', '当前为 file:// 协议，同源代理不可用', { href: location.href });
+  }
   initControls();
   fillSettings();
   $('#negPrompt').value = CFG.negative;
