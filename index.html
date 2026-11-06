@@ -1,0 +1,2834 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Local Dream Studio · 受控模式生图台</title>
+<style>
+/* ─────────────────────────── 设计令牌 ─────────────────────────── */
+:root{
+  --accent:#6d8cff;
+  --accent-rgb:109,140,255;
+  --violet:#a06dff;
+  --ok:#3ddc97;
+  --warn:#ffb84d;
+  --err:#ff6b6b;
+  --r-lg:16px;
+  --r-md:12px;
+  --r-sm:9px;
+  --ease:cubic-bezier(.22,.61,.36,1);
+  /* 全局唯一字体栈：界面、数字、代码全部走这一套 */
+  --font:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+  --num:tabular-nums;
+}
+html[data-theme="dark"]{
+  --bg:#08090d;
+  --panel:#111319;
+  --panel-2:#171a22;
+  --panel-3:#1e222b;
+  --line:rgba(255,255,255,.075);
+  --line-strong:rgba(255,255,255,.14);
+  --text:#e9edf5;
+  --text-dim:#8b95a7;
+  --text-faint:#5c6678;
+  --shadow:0 18px 50px -18px rgba(0,0,0,.9);
+  --stage:#05060a;
+  --glow:.20;
+}
+/* OLED：纯黑底 + 极低亮度面板，只为省电与高对比 */
+html[data-theme="oled"]{
+  --bg:#000000;
+  --panel:#050505;
+  --panel-2:#0b0b0b;
+  --panel-3:#141414;
+  --line:rgba(255,255,255,.085);
+  --line-strong:rgba(255,255,255,.16);
+  --text:#f2f5fa;
+  --text-dim:#949eae;
+  --text-faint:#616b7c;
+  --shadow:0 18px 50px -18px rgba(0,0,0,1);
+  --stage:#000000;
+  --glow:0;
+}
+html[data-theme="light"]{
+  --bg:#eef1f6;
+  --panel:#ffffff;
+  --panel-2:#f6f8fb;
+  --panel-3:#eef1f6;
+  --line:rgba(16,24,40,.085);
+  --line-strong:rgba(16,24,40,.16);
+  --text:#101828;
+  --text-dim:#5d6b80;
+  --text-faint:#8a95a8;
+  --shadow:0 16px 40px -20px rgba(16,24,40,.35);
+  --stage:#e4e8ef;
+  --glow:.20;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;font-family:var(--font);background:var(--bg);color:var(--text);
+  overflow:hidden;-webkit-font-smoothing:antialiased;font-size:13px;
+  font-variant-numeric:var(--num);
+}
+/* 表单控件不会自动继承字体，统一在这里收口 */
+button,input,select,textarea{font-family:inherit;font-variant-numeric:inherit}
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(1100px 560px at 12% -12%, rgba(var(--accent-rgb),var(--glow)), transparent 62%),
+    radial-gradient(900px 520px at 102% -4%, rgba(160,109,255,calc(var(--glow) * .7)), transparent 60%);
+}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:99px;border:2px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-thumb:hover{background:var(--text-faint);background-clip:padding-box}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ─────────────────────────── 骨架 ─────────────────────────── */
+.app{position:relative;z-index:1;height:100vh;display:flex;flex-direction:column;gap:11px;padding:13px}
+
+.topbar{
+  display:flex;align-items:center;gap:14px;padding:9px 14px;flex:0 0 auto;
+  background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,0));
+  border:1px solid var(--line);border-radius:var(--r-lg);
+  backdrop-filter:blur(14px);
+}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.logo{
+  width:30px;height:30px;border-radius:9px;flex:0 0 auto;display:grid;place-items:center;
+  background:linear-gradient(145deg,rgba(var(--accent-rgb),.95),rgba(160,109,255,.9));
+  box-shadow:0 6px 18px -6px rgba(var(--accent-rgb),.85);
+}
+.logo svg{width:17px;height:17px}
+.brand-txt{display:flex;flex-direction:column;line-height:1.25;min-width:0}
+.brand-txt b{font-size:13.5px;letter-spacing:.2px;font-weight:650;white-space:nowrap}
+.brand-txt span{font-size:10.5px;color:var(--text-faint);letter-spacing:.5px;text-transform:uppercase}
+
+.pill{
+  display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 11px;border-radius:99px;
+  border:1px solid var(--line);background:var(--panel-2);font-size:11.5px;color:var(--text-dim);
+  white-space:nowrap;max-width:340px;overflow:hidden;text-overflow:ellipsis;
+}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--text-faint);flex:0 0 auto;transition:.3s}
+.dot.on{background:var(--ok);box-shadow:0 0 0 3px rgba(61,220,151,.16)}
+.dot.wait{background:var(--warn);box-shadow:0 0 0 3px rgba(255,184,77,.16);animation:pulse 1.3s infinite}
+.dot.off{background:var(--err);box-shadow:0 0 0 3px rgba(255,107,107,.16)}
+.dot.demo{background:var(--violet);box-shadow:0 0 0 3px rgba(160,109,255,.18)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+.spacer{flex:1}
+
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  height:30px;padding:0 12px;border-radius:var(--r-sm);cursor:pointer;
+  border:1px solid var(--line-strong);background:var(--panel-2);color:var(--text);
+  font-size:12px;font-family:inherit;font-weight:520;transition:.18s var(--ease);
+  white-space:nowrap;user-select:none;
+}
+.btn:hover:not(:disabled){background:var(--panel-3);border-color:var(--text-faint);transform:translateY(-1px)}
+.btn:active:not(:disabled){transform:translateY(0)}
+.btn:disabled{opacity:.42;cursor:not-allowed}
+.btn.icon{width:30px;padding:0}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--text-dim)}
+.btn.ghost:hover:not(:disabled){background:var(--panel-2);color:var(--text);border-color:var(--line)}
+.btn svg{width:14px;height:14px;flex:0 0 auto}
+
+.studio{flex:1;min-height:0;display:grid;grid-template-columns:294px minmax(0,1fr) 340px;gap:11px}
+.col{
+  min-height:0;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);
+  box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden;
+}
+.col-scroll{overflow-y:auto;overflow-x:hidden;padding:12px;display:flex;flex-direction:column;gap:16px;flex:1}
+
+.sec-title{
+  display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:650;letter-spacing:1.1px;
+  text-transform:uppercase;color:var(--text-faint);margin:0 0 9px;
+}
+.sec-title::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+.sec-title .hint{font-size:10px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--text-faint)}
+
+/* ─────────────────────────── 左：模型 ─────────────────────────── */
+.model-list{display:flex;flex-direction:column;gap:7px}
+.cat-chips{gap:4px;margin-bottom:9px}
+.cat-chips .chip{height:23px;font-size:10.5px;padding:0 8px;font-weight:560}
+.mgroup{
+  display:flex;align-items:center;gap:7px;margin:10px 0 5px;
+  font-size:9.5px;font-weight:650;letter-spacing:.9px;text-transform:uppercase;color:var(--text-faint);
+}
+.mgroup:first-child{margin-top:0}
+.mgroup::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+.model-card{
+  position:relative;text-align:left;padding:9px 10px;border-radius:var(--r-md);cursor:pointer;
+  border:1px solid var(--line);background:var(--panel-2);transition:.18s var(--ease);overflow:hidden;
+}
+.model-card:hover{border-color:var(--line-strong);background:var(--panel-3)}
+.model-card.active{border-color:rgba(var(--accent-rgb),.75);background:rgba(var(--accent-rgb),.10)}
+.model-card.active::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--accent);
+  box-shadow:0 0 12px var(--accent);
+}
+.model-card.loading{border-color:var(--warn)}
+.mc-top{display:flex;align-items:baseline;gap:6px;justify-content:space-between}
+.mc-name{font-size:12px;font-weight:600;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mc-size{font-family:var(--font);font-size:10px;color:var(--text-faint);flex:0 0 auto}
+.mc-desc{
+  font-size:10.5px;color:var(--text-dim);margin-top:3px;line-height:1.4;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.mc-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.tag{
+  font-size:9.5px;padding:1px 6px;border-radius:5px;letter-spacing:.3px;
+  background:var(--panel-3);border:1px solid var(--line);color:var(--text-dim);font-weight:560;
+}
+.tag.npu{color:#8fb3ff;border-color:rgba(109,140,255,.3);background:rgba(109,140,255,.1)}
+.tag.cpu{color:#ffc978;border-color:rgba(255,184,77,.3);background:rgba(255,184,77,.1)}
+.tag.sdxl{color:#c9a2ff;border-color:rgba(160,109,255,.32);background:rgba(160,109,255,.1)}
+.tag.cur{color:var(--ok);border-color:rgba(61,220,151,.32);background:rgba(61,220,151,.1)}
+
+.empty-line{font-size:11.5px;color:var(--text-faint);padding:14px 0;text-align:center;line-height:1.6}
+/* 填充状态下的信息块不要继承 .empty-line 的居中 */
+#devInfo:has(> div), #statusBox:has(> div){text-align:left;padding:0}
+
+/* ─────────────────────────── 中：画布 ─────────────────────────── */
+.stage-wrap{
+  position:relative;flex:1;min-height:0;margin:11px 11px 0;border-radius:var(--r-md);
+  background:
+    linear-gradient(0deg,rgba(0,0,0,.02),rgba(0,0,0,.02)),
+    repeating-conic-gradient(var(--stage) 0% 25%, transparent 0% 50%) 50%/22px 22px;
+  border:1px solid var(--line);overflow:hidden;
+}
+.stage-viewport{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  overflow:hidden;touch-action:none;cursor:default;
+}
+.stage-viewport.pannable{cursor:grab}
+.stage-viewport.pannable.grabbing{cursor:grabbing}
+.stage-viewport.painting{cursor:crosshair}
+.stage-frame{
+  position:relative;line-height:0;border-radius:6px;overflow:hidden;
+  transform-origin:center center;will-change:transform;flex:0 0 auto;
+  box-shadow:0 20px 60px -24px rgba(0,0,0,.8);
+}
+#stage{display:block;max-width:none;max-height:none}
+#maskCanvas{position:absolute;inset:0;width:100%;height:100%;display:none;touch-action:none;cursor:crosshair}
+
+/* 缩放工具条 */
+.stage-tools{
+  position:absolute;right:9px;bottom:9px;z-index:5;display:flex;align-items:center;gap:2px;
+  padding:4px 5px;border-radius:10px;background:rgba(8,9,13,.55);
+  border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(10px);
+  opacity:.72;transition:.2s var(--ease);
+}
+.stage-wrap:hover .stage-tools,.stage-tools.pinned{opacity:1}
+html[data-theme="light"] .stage-tools{background:rgba(255,255,255,.88);border-color:rgba(16,24,40,.1)}
+.zoom-sel{
+  height:24px;width:auto;border:0;border-radius:6px;background-color:transparent;
+  background-repeat:no-repeat;background-position:right 4px center;
+  color:#dfe5f0;font-size:11px;font-weight:550;
+  padding:0 17px 0 7px;cursor:pointer;outline:none;
+}
+.zoom-sel:hover{background:rgba(255,255,255,.12)}
+.zoom-sel option{background:#111319;color:#e9edf5}
+html[data-theme="light"] .zoom-sel{color:#344054}
+html[data-theme="light"] .zoom-sel:hover{background:rgba(16,24,40,.07)}
+html[data-theme="light"] .zoom-sel option{background:#fff;color:#101828}
+.zoom-btn{
+  width:24px;height:24px;border-radius:6px;border:0;background:transparent;color:#dfe5f0;
+  display:grid;place-items:center;cursor:pointer;padding:0;transition:.15s;
+}
+.zoom-btn:hover{background:rgba(255,255,255,.12)}
+.zoom-btn svg{width:13px;height:13px}
+html[data-theme="light"] .zoom-btn{color:#344054}
+html[data-theme="light"] .zoom-btn:hover{background:rgba(16,24,40,.07)}
+#maskCanvas.on{display:block}
+
+.hud{position:absolute;left:10px;top:10px;right:10px;display:flex;gap:8px;align-items:flex-start;pointer-events:none;z-index:3}
+.hud-chip{
+  display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:7px;
+  background:rgba(8,9,13,.62);border:1px solid rgba(255,255,255,.1);color:#dfe5f0;
+  font-size:10.5px;font-family:var(--font);backdrop-filter:blur(10px);white-space:nowrap;
+}
+html[data-theme="light"] .hud-chip{background:rgba(255,255,255,.82);border-color:rgba(16,24,40,.1);color:#344054}
+.hud-chip:empty{display:none}
+
+.stage-progress{
+  position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(0,0,0,.28);z-index:3;
+  opacity:0;transition:opacity .25s;
+}
+.stage-progress.on{opacity:1}
+.stage-progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--violet));transition:width .28s var(--ease);box-shadow:0 0 12px rgba(var(--accent-rgb),.9)}
+
+.empty-stage{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;color:var(--text-faint);text-align:center;padding:24px;z-index:1}
+.empty-stage svg{width:40px;height:40px;opacity:.42}
+.empty-stage b{font-size:13px;color:var(--text-dim);font-weight:560}
+.empty-stage p{margin:0;font-size:11.5px;line-height:1.65;max-width:300px}
+
+.result-meta{display:flex;gap:12px;flex-wrap:wrap;padding:7px 13px 0;font-size:10.5px;color:var(--text-faint);font-family:var(--font);min-height:22px}
+.result-meta b{color:var(--text-dim);font-weight:500}
+
+/* 提示词区 */
+.prompt-zone{flex:0 0 auto;padding:9px 13px 13px;display:flex;flex-direction:column;gap:9px}
+.tabs{display:inline-flex;gap:2px;padding:3px;border-radius:10px;background:var(--panel-2);border:1px solid var(--line);align-self:flex-start}
+.tab{
+  padding:0 12px;height:25px;border:0;border-radius:7px;background:transparent;color:var(--text-dim);
+  font-size:11.5px;font-family:inherit;font-weight:560;cursor:pointer;transition:.16s var(--ease);
+}
+.tab:hover{color:var(--text)}
+.tab.on{background:var(--panel);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.28)}
+html[data-theme="light"] .tab.on{box-shadow:0 1px 4px rgba(16,24,40,.12)}
+
+.field{position:relative;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel-2);transition:.18s var(--ease)}
+.field:focus-within{border-color:rgba(var(--accent-rgb),.7);box-shadow:0 0 0 3px rgba(var(--accent-rgb),.12)}
+.field textarea{
+  width:100%;border:0;background:transparent;color:var(--text);font-family:inherit;font-size:12.5px;
+  line-height:1.55;padding:9px 11px;resize:none;outline:none;display:block;
+}
+.field textarea::placeholder{color:var(--text-faint)}
+.field .field-foot{display:flex;align-items:center;gap:8px;padding:0 9px 7px;font-size:10.5px;color:var(--text-faint)}
+.chip-mini{
+  font-family:var(--font);font-size:10px;padding:1px 6px;border-radius:5px;
+  background:var(--panel-3);border:1px solid var(--line);color:var(--text-dim);
+}
+.chip-mini.over{color:var(--err);border-color:rgba(255,107,107,.4);background:rgba(255,107,107,.1)}
+
+.neg-toggle{
+  display:flex;align-items:center;gap:5px;border:0;background:transparent;color:var(--text-faint);
+  font-size:10.5px;font-family:inherit;cursor:pointer;padding:0;transition:.16s;
+}
+.neg-toggle:hover{color:var(--text-dim)}
+.neg-toggle svg{width:11px;height:11px;transition:transform .2s}
+.neg-toggle.open svg{transform:rotate(90deg)}
+#negWrap{max-height:0;overflow:hidden;transition:max-height .26s var(--ease)}
+#negWrap.open{max-height:110px}
+
+.gen-row{display:flex;gap:9px;align-items:center}
+.gen-btn{
+  flex:1;height:40px;border-radius:var(--r-md);border:1px solid transparent;cursor:pointer;
+  background:linear-gradient(135deg,rgba(var(--accent-rgb),1),rgba(160,109,255,.95));
+  color:#fff;font-size:13px;font-weight:640;font-family:inherit;letter-spacing:.3px;
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  transition:.2s var(--ease);box-shadow:0 8px 24px -10px rgba(var(--accent-rgb),.9);
+  position:relative;overflow:hidden;
+}
+.gen-btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 12px 28px -10px rgba(var(--accent-rgb),1)}
+.gen-btn:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
+.gen-btn.cancel{background:linear-gradient(135deg,#ff6b6b,#ff8f5a);box-shadow:0 8px 24px -10px rgba(255,107,107,.9)}
+.gen-btn svg{width:15px;height:15px}
+
+.seed-box{display:flex;align-items:center;gap:5px;height:40px;padding:0 8px;border-radius:var(--r-md);border:1px solid var(--line);background:var(--panel-2)}
+.seed-box input{
+  width:88px;border:0;background:transparent;color:var(--text);font-family:var(--font);font-size:11.5px;
+  outline:none;text-align:center;
+}
+.seed-box input::placeholder{color:var(--text-faint)}
+.mini-btn{
+  width:24px;height:24px;border-radius:6px;border:1px solid transparent;background:transparent;
+  color:var(--text-faint);cursor:pointer;display:grid;place-items:center;transition:.16s;padding:0;
+}
+.mini-btn:hover{background:var(--panel-3);color:var(--text)}
+.mini-btn.on{color:var(--accent);background:rgba(var(--accent-rgb),.12);border-color:rgba(var(--accent-rgb),.3)}
+.mini-btn svg{width:13px;height:13px}
+
+/* ─────────────────────────── 右：参数 ─────────────────────────── */
+.param{display:flex;flex-direction:column;gap:5px;margin-bottom:13px}
+.param:last-child{margin-bottom:0}
+.param-head{display:flex;align-items:center;justify-content:space-between;font-size:11.5px;color:var(--text-dim)}
+.param-head .val{font-family:var(--font);font-size:11.5px;color:var(--text);font-weight:600}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:99px;outline:none;
+  background:linear-gradient(90deg,var(--accent) var(--p,50%),var(--line-strong) var(--p,50%));
+  margin:5px 0;cursor:pointer;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:#fff;
+  border:2.5px solid var(--accent);cursor:grab;box-shadow:0 2px 7px rgba(0,0,0,.45);transition:.15s;
+}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
+input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;background:#fff;border:2.5px solid var(--accent);cursor:grab}
+
+select,input[type=text],input[type=number]{
+  width:100%;height:32px;padding:0 9px;border-radius:var(--r-sm);border:1px solid var(--line);
+  background:var(--panel-2);color:var(--text);font-family:inherit;font-size:12px;outline:none;
+  transition:.16s var(--ease);appearance:none;
+}
+select{
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b95a7' stroke-width='2.5' stroke-linecap='round'><path d='M6 9l6 6 6-6'/></svg>");
+  background-repeat:no-repeat;background-position:right 9px center;padding-right:26px;cursor:pointer;
+}
+select:focus,input[type=text]:focus,input[type=number]:focus{border-color:rgba(var(--accent-rgb),.7);box-shadow:0 0 0 3px rgba(var(--accent-rgb),.1)}
+
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{
+  padding:0 9px;height:27px;border-radius:7px;border:1px solid var(--line);background:var(--panel-2);
+  color:var(--text-dim);font-size:11px;font-family:var(--font);cursor:pointer;transition:.16s var(--ease);
+  display:inline-flex;align-items:center;justify-content:center;
+}
+.chip:hover{border-color:var(--line-strong);color:var(--text)}
+.chip.on{background:rgba(var(--accent-rgb),.14);border-color:rgba(var(--accent-rgb),.6);color:var(--text)}
+
+.switch-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 0}
+.switch-row .lab{font-size:11.5px;color:var(--text-dim);display:flex;flex-direction:column;gap:1px}
+.switch-row .lab small{font-size:9.5px;color:var(--text-faint);line-height:1.35}
+.switch{
+  position:relative;width:34px;height:19px;border-radius:99px;background:var(--panel-3);
+  border:1px solid var(--line-strong);cursor:pointer;transition:.2s var(--ease);flex:0 0 auto;
+}
+.switch::after{
+  content:'';position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;
+  background:var(--text-faint);transition:.2s var(--ease);
+}
+.switch.on{background:rgba(var(--accent-rgb),.28);border-color:rgba(var(--accent-rgb),.65)}
+.switch.on::after{transform:translateX(15px);background:var(--accent);box-shadow:0 0 8px rgba(var(--accent-rgb),.9)}
+
+.warn-line{
+  font-size:10.5px;line-height:1.5;color:var(--warn);background:rgba(255,184,77,.08);
+  border:1px solid rgba(255,184,77,.26);border-radius:8px;padding:6px 8px;
+}
+
+/* 图生图面板 */
+#i2iPanel{display:none;flex-direction:column;gap:9px}
+#i2iPanel.on{display:flex}
+.drop{
+  border:1px dashed var(--line-strong);border-radius:var(--r-md);padding:14px;text-align:center;
+  font-size:11px;color:var(--text-faint);cursor:pointer;transition:.18s var(--ease);line-height:1.5;
+}
+.drop:hover,.drop.over{border-color:rgba(var(--accent-rgb),.7);background:rgba(var(--accent-rgb),.06);color:var(--text-dim)}
+.drop b{display:block;color:var(--text-dim);font-size:11.5px;margin-bottom:2px}
+
+/* 历史 */
+.history{display:grid;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));gap:6px}
+.hist-item{
+  position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;border:1px solid var(--line);
+  cursor:pointer;transition:.16s var(--ease);background:var(--panel-2);
+}
+.hist-item:hover{transform:translateY(-2px);border-color:var(--accent)}
+.hist-item img{width:100%;height:100%;object-fit:cover;display:block}
+
+/* ─────────────────────────── 弹层 ─────────────────────────── */
+.modal{
+  position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;
+  background:rgba(3,4,8,.62);backdrop-filter:blur(6px);padding:20px;
+}
+.modal.on{display:flex}
+.modal-card{
+  width:min(560px,100%);max-height:86vh;overflow-y:auto;background:var(--panel);
+  border:1px solid var(--line-strong);border-radius:18px;box-shadow:0 40px 90px -30px #000;
+  display:flex;flex-direction:column;
+}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:2;border-radius:18px 18px 0 0}
+.modal-head h3{margin:0;font-size:14px;font-weight:640}
+.modal-body{padding:16px 18px;display:flex;flex-direction:column;gap:16px}
+.modal-foot{padding:12px 18px 16px;display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--line);position:sticky;bottom:0;background:var(--panel);border-radius:0 0 18px 18px}
+
+/* ── 二级菜单式设置面板 ── */
+.settings-card{
+  width:min(880px,100%);height:min(600px,86vh);display:flex;overflow:hidden;
+  background:var(--panel);border:1px solid var(--line-strong);border-radius:18px;
+  box-shadow:0 40px 90px -30px #000;animation:popIn .22s var(--ease);
+}
+@keyframes popIn{from{opacity:0;transform:translateY(8px) scale(.99)}to{opacity:1;transform:none}}
+.settings-nav{
+  width:200px;flex:0 0 auto;display:flex;flex-direction:column;gap:2px;
+  padding:14px 10px;background:var(--panel-2);border-right:1px solid var(--line);
+}
+.sn-head{padding:2px 9px 11px;font-size:13px;font-weight:650;letter-spacing:.3px}
+.sn-item{
+  display:block;width:100%;text-align:left;padding:7px 9px;border:0;border-radius:9px;
+  background:transparent;color:var(--text-dim);font-family:inherit;font-size:12px;
+  font-weight:560;cursor:pointer;transition:.15s var(--ease);line-height:1.3;
+}
+.sn-item small{display:block;font-size:9.5px;font-weight:400;color:var(--text-faint);margin-top:1px;letter-spacing:.2px}
+.sn-item:hover{background:var(--panel-3);color:var(--text)}
+.sn-item.active{background:rgba(var(--accent-rgb),.14);color:var(--text);box-shadow:inset 0 0 0 1px rgba(var(--accent-rgb),.32)}
+.sn-item.active small{color:var(--text-dim)}
+.sn-foot{margin-top:auto;padding:10px 9px 2px;font-size:9.5px;color:var(--text-faint);line-height:1.6;font-family:var(--font);word-break:break-all}
+
+.settings-main{flex:1;min-width:0;display:flex;flex-direction:column}
+.settings-top{display:flex;align-items:center;justify-content:space-between;padding:14px 20px 13px;border-bottom:1px solid var(--line);flex:0 0 auto}
+.settings-top h3{margin:0;font-size:14px;font-weight:640;letter-spacing:.2px}
+.settings-body{flex:1;min-height:0;overflow-y:auto;padding:18px 20px;display:flex;flex-direction:column}
+.sec-pane{display:none;flex-direction:column;gap:18px;animation:fadeIn .18s var(--ease)}
+.sec-pane.active{display:flex}
+@keyframes fadeIn{from{opacity:0;transform:translateX(4px)}to{opacity:1;transform:none}}
+.settings-foot{display:flex;align-items:center;gap:8px;padding:12px 20px;border-top:1px solid var(--line);background:var(--panel);flex:0 0 auto}
+
+.sgroup{display:flex;flex-direction:column;gap:7px}
+.sgroup > .field-label{margin:0}
+.shelp{font-size:11px;color:var(--text-faint);line-height:1.65}
+.settings-body .sgroup > input[type=number]{max-width:156px}
+
+/* 连接状态条 */
+.conn-status{
+  display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;
+  border:1px solid var(--line);background:var(--panel-2);
+}
+.cs-txt{display:flex;flex-direction:column;line-height:1.4;min-width:0;flex:1}
+.cs-txt b{font-size:12px;font-weight:600}
+.cs-txt span{font-size:10.5px;color:var(--text-faint);font-family:var(--font);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.settings-body textarea{
+  width:100%;padding:8px 10px;border-radius:var(--r-sm);border:1px solid var(--line);
+  background:var(--panel-2);color:var(--text);font-family:inherit;font-size:12px;
+  line-height:1.6;resize:vertical;outline:none;min-height:68px;transition:.16s var(--ease);
+}
+.settings-body textarea:focus{border-color:rgba(var(--accent-rgb),.7);box-shadow:0 0 0 3px rgba(var(--accent-rgb),.1)}
+.btn.primary{background:rgba(var(--accent-rgb),.92);border-color:transparent;color:#fff;font-weight:600}
+.btn.primary:hover:not(:disabled){background:var(--accent)}
+.btn.danger{color:var(--err);border-color:rgba(255,107,107,.35)}
+.btn.danger:hover:not(:disabled){background:rgba(255,107,107,.1);border-color:var(--err)}
+
+.swatches{display:flex;gap:7px;margin-top:2px}
+.swatch{width:22px;height:22px;border-radius:7px;border:2px solid transparent;cursor:pointer;padding:0;transition:.15s var(--ease)}
+.swatch:hover{transform:scale(1.12)}
+.swatch.on{border-color:var(--text);box-shadow:0 0 0 2px var(--panel)}
+
+.save-path{
+  font-size:10.5px;color:var(--text-dim);padding:7px 9px;border-radius:8px;
+  border:1px dashed var(--line-strong);background:var(--panel-2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.save-path.ok{border-style:solid;border-color:rgba(61,220,151,.35);color:var(--text)}
+.save-path.warn{border-color:rgba(255,184,77,.45);color:var(--warn)}
+
+.about-row{display:flex;justify-content:space-between;gap:12px;font-size:11.5px;padding:6px 0;border-bottom:1px dashed var(--line)}.about-row:last-child{border-bottom:0}
+.about-row span{color:var(--text-dim)}
+.about-row b{color:var(--text);font-weight:560;font-family:var(--font);font-size:11px;text-align:right;word-break:break-all}
+
+html.no-anim *{transition:none!important;animation:none!important}
+
+@media (max-width:760px){
+  .settings-card{flex-direction:column;height:min(78vh,580px)}
+  .settings-nav{
+    width:100%;flex-direction:row;overflow-x:auto;overflow-y:hidden;gap:4px;
+    border-right:0;border-bottom:1px solid var(--line);padding:8px;
+  }
+  .sn-head,.sn-foot{display:none}
+  .sn-item{width:auto;white-space:nowrap;padding:6px 11px}
+  .sn-item small{display:none}
+}
+.seg{display:flex;padding:3px;gap:2px;border-radius:10px;background:var(--panel-2);border:1px solid var(--line);width:100%}
+.seg button{
+  flex:1 1 0;min-width:0;height:27px;padding:0 6px;border:0;border-radius:7px;background:transparent;color:var(--text-dim);
+  font-size:11px;font-family:inherit;font-weight:560;cursor:pointer;transition:.16s;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.seg button.on{background:rgba(var(--accent-rgb),.16);color:var(--text);box-shadow:inset 0 0 0 1px rgba(var(--accent-rgb),.4)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.field-label{font-size:11px;color:var(--text-dim);margin-bottom:5px;display:block;font-weight:560}
+.src-list{font-size:10.5px;line-height:1.7;color:var(--text-dim);word-break:break-all}
+.src-list a{color:var(--accent);text-decoration:none}
+.src-list a:hover{text-decoration:underline}
+.src-list li{margin-bottom:3px}
+
+.toasts{position:fixed;right:16px;bottom:16px;z-index:99;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast{
+  min-width:200px;max-width:340px;padding:9px 13px;border-radius:10px;font-size:11.5px;line-height:1.5;
+  background:var(--panel-3);border:1px solid var(--line-strong);color:var(--text);
+  box-shadow:0 14px 40px -14px #000;animation:slideIn .26s var(--ease);border-left:3px solid var(--accent);
+}
+.toast.err{border-left-color:var(--err)}
+.toast.ok{border-left-color:var(--ok)}
+.toast.warn{border-left-color:var(--warn)}
+@keyframes slideIn{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:none}}
+
+.spin{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+@media (max-width:1180px){
+  .studio{grid-template-columns:250px minmax(0,1fr) 306px}
+}
+@media (max-width:960px){
+  body{overflow:auto}
+  .app{height:auto;min-height:100vh}
+  .studio{grid-template-columns:1fr}
+  .col{max-height:none}
+  .stage-wrap{min-height:320px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ─── 顶栏 ─── -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/>
+          <circle cx="12" cy="12" r="3.2"/>
+        </svg>
+      </div>
+      <div class="brand-txt">
+        <b>Local Dream Studio</b>
+        <span>Controlled Mode</span>
+      </div>
+    </div>
+    <div class="pill" id="connPill" title="受控模式连接状态">
+      <i class="dot" id="connDot"></i>
+      <span id="connText">未连接</span>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn" id="btnTest" title="探测 /info 与生成口">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      测试连接
+    </button>
+    <button class="btn ghost" id="btnTheme" title="切换明暗主题">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    </button>
+    <button class="btn ghost" id="btnSettings" title="设置">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.14.5.55.9 1.06 1.06H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </header>
+
+  <main class="studio">
+    <!-- ─── 左栏 ─── -->
+    <aside class="col">
+      <div class="col-scroll">
+        <section>
+          <h4 class="sec-title">设备 <span class="hint" id="devVer"></span></h4>
+          <div id="devInfo" class="empty-line">尚未连接</div>
+        </section>
+        <section>
+          <h4 class="sec-title">模型 <span class="hint" id="modelCount"></span></h4>
+          <div class="chips cat-chips" id="catChips"></div>
+          <div class="model-list" id="modelList">
+            <div class="empty-line">连接后自动载入模型列表</div>
+          </div>
+        </section>
+        <section>
+          <h4 class="sec-title">历史 <span class="hint" id="histCount"></span></h4>
+          <div class="history" id="history"></div>
+        </section>
+      </div>
+    </aside>
+
+    <!-- ─── 中栏 ─── -->
+    <section class="col">
+      <div class="stage-wrap" id="stageWrap">
+        <div class="hud">
+          <span class="hud-chip" id="hudModel"></span>
+          <span class="hud-chip" id="hudStep" style="display:none">0 / 0</span>
+          <div class="spacer"></div>
+          <span class="hud-chip" id="hudEta" style="display:none"></span>
+        </div>
+        <div class="empty-stage" id="emptyStage">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg>
+          <b>画布空着</b>
+          <p>左侧选一个模型，写下提示词，点「生成」。扩散中间步骤会实时绘制在这里。</p>
+        </div>
+        <div class="stage-viewport" id="stageViewport">
+          <div class="stage-frame" id="stageFrame" style="display:none">
+            <canvas id="stage"></canvas>
+            <canvas id="maskCanvas"></canvas>
+          </div>
+        </div>
+        <div class="stage-tools" id="stageTools">
+          <select class="zoom-sel" id="zoomSel" title="缩放比例">
+            <option value="fit">适应窗口</option>
+            <option value="0.25">25%</option>
+            <option value="0.5">50%</option>
+            <option value="0.75">75%</option>
+            <option value="1">100%</option>
+            <option value="1.5">150%</option>
+            <option value="2">200%</option>
+            <option value="3">300%</option>
+            <option value="4">400%</option>
+          </select>
+          <button class="zoom-btn" id="zoomReset" title="重置视图（双击画布亦可）">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>
+            </svg>
+          </button>
+        </div>
+        <div class="stage-progress" id="stageProg"><i id="stageProgBar"></i></div>
+      </div>
+
+      <div class="result-meta" id="resultMeta"></div>
+
+      <div class="prompt-zone">
+        <div class="tabs">
+          <button class="tab on" data-tab="txt2img">文生图</button>
+          <button class="tab" data-tab="img2img">图生图</button>
+          <button class="tab" data-tab="inpaint">局部重绘</button>
+        </div>
+
+        <div class="field">
+          <textarea id="prompt" rows="2" placeholder="正向提示词，例如：1girl, masterpiece, best quality, cinematic lighting, rain, umbrella"></textarea>
+          <div class="field-foot">
+            <span class="chip-mini" id="tokenChip">— tokens</span>
+            <button class="neg-toggle" id="negToggle">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>
+              反向提示词
+            </button>
+          </div>
+          <div id="negWrap">
+            <div style="padding:0 11px 9px">
+              <textarea id="negPrompt" rows="2" placeholder="negative prompt" style="font-size:11.5px;background:var(--panel-3);border-radius:8px;padding:8px 9px"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="gen-row">
+          <button class="gen-btn" id="btnGen">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v4M3 5h4M6 17v4M4 19h4M13 3l2.5 6.5L22 12l-6.5 2.5L13 21l-2.5-6.5L4 12l6.5-2.5z"/></svg>
+            <span id="btnGenText">生成</span>
+          </button>
+          <div class="seed-box">
+            <button class="mini-btn" id="btnDice" title="随机种子">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></svg>
+            </button>
+            <input id="seedInput" type="text" inputmode="numeric" placeholder="随机" title="留空=每次随机；填数字则固定种子">
+            <button class="mini-btn" id="btnLockSeed" title="锁定当前种子">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── 右栏 ─── -->
+    <aside class="col">
+      <div class="col-scroll">
+        <section>
+          <h4 class="sec-title">采样</h4>
+          <div class="param">
+            <div class="param-head"><span>步数 steps</span><span class="val" id="stepsVal">20</span></div>
+            <input type="range" id="steps" min="1" max="60" value="20">
+          </div>
+          <div class="param">
+            <div class="param-head"><span>CFG</span><span class="val" id="cfgVal">7.5</span></div>
+            <input type="range" id="cfg" min="0" max="20" step="0.5" value="7.5">
+          </div>
+          <div class="param">
+            <div class="param-head"><span>采样器</span></div>
+            <select id="scheduler">
+              <option value="dpm">DPM++ 2M</option>
+              <option value="dpm_karras">DPM++ 2M + Karras</option>
+              <option value="dpm_sde">DPM++ 2M SDE</option>
+              <option value="dpm_sde_karras">DPM++ 2M SDE + Karras</option>
+              <option value="euler_a">Euler A</option>
+              <option value="euler_a_karras">Euler A + Karras</option>
+              <option value="euler">Euler</option>
+              <option value="euler_karras">Euler + Karras</option>
+              <option value="lcm">LCM</option>
+            </select>
+          </div>
+        </section>
+
+        <section id="secSize">
+          <h4 class="sec-title">尺寸 <span class="hint" id="sizeHint"></span></h4>
+          <div class="chips" id="sizeChips"></div>
+          <div id="whWrap" style="display:none;margin-top:7px">
+            <div class="row2">
+              <div>
+                <label class="field-label" style="font-size:10px">宽 W</label>
+                <input type="number" id="inW" value="512" step="8" min="64" max="2048">
+              </div>
+              <div>
+                <label class="field-label" style="font-size:10px">高 H</label>
+                <input type="number" id="inH" value="512" step="8" min="64" max="2048">
+              </div>
+            </div>
+          </div>
+          <div id="sizeWarn" class="warn-line" style="display:none;margin-top:7px"></div>
+        </section>
+
+        <section id="i2iPanel">
+          <h4 class="sec-title">输入图</h4>
+          <div class="drop" id="dropZone">
+            <b>点击或拖入图片</b>
+            PNG / JPG，需与目标尺寸一致
+          </div>
+          <input type="file" id="fileInput" accept="image/*" style="display:none">
+          <div class="param" style="margin-top:9px">
+            <div class="param-head"><span>去噪强度 denoise</span><span class="val" id="denoiseVal">0.60</span></div>
+            <input type="range" id="denoise" min="0" max="1" step="0.05" value="0.6">
+          </div>
+          <div id="maskTools" style="display:none;margin-top:6px">
+            <div class="param">
+              <div class="param-head"><span>笔刷大小</span><span class="val" id="brushVal">48</span></div>
+              <input type="range" id="brush" min="6" max="200" value="48">
+            </div>
+            <button class="btn" id="btnClearMask" style="width:100%">清除蒙版</button>
+            <div style="font-size:10px;color:var(--text-faint);margin-top:6px;line-height:1.5">在画布上涂抹需要重绘的区域（白色=重绘区）</div>
+          </div>
+        </section>
+
+        <section>
+          <h4 class="sec-title">高级</h4>
+          <div class="switch-row">
+            <div class="lab">过程预览 <small>show_diffusion_process</small></div>
+            <div class="switch on" id="swProcess"></div>
+          </div>
+          <div class="param" style="margin-top:6px">
+            <div class="param-head"><span>预览步幅</span><span class="val" id="strideVal">1</span></div>
+            <input type="range" id="stride" min="1" max="10" value="1">
+          </div>
+          <div class="switch-row">
+            <div class="lab">OpenCL 加速 <small>use_opencl · 仅 CPU 模式</small></div>
+            <div class="switch" id="swOpencl"></div>
+          </div>
+        </section>
+
+        <section>
+          <h4 class="sec-title">后端状态</h4>
+          <div id="statusBox" class="empty-line">—</div>
+        </section>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<!-- ─── 设置弹层（二级菜单） ─── -->
+<div class="modal" id="settingsModal">
+  <div class="settings-card" role="dialog" aria-modal="true" aria-label="设置">
+    <aside class="settings-nav">
+      <div class="sn-head">设置</div>
+      <button class="sn-item active" data-sec="conn">连接<small>模式 · 地址 · 端口</small></button>
+      <button class="sn-item" data-sec="gen">生成<small>提示词 · 预览</small></button>
+      <button class="sn-item" data-sec="ui">外观<small>主题 · 强调色</small></button>
+      <button class="sn-item" data-sec="data">配置<small>自动保存 · 历史</small></button>
+      <button class="sn-item" data-sec="about">关于<small>接口依据 · 运行时</small></button>
+      <div class="sn-foot" id="snVersion">未连接</div>
+    </aside>
+
+    <section class="settings-main">
+      <header class="settings-top">
+        <h3 id="secTitle">连接</h3>
+        <button class="mini-btn" id="btnCloseSettings" style="width:26px;height:26px" title="关闭">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </header>
+
+      <div class="settings-body">
+        <!-- ① 连接 -->
+        <div class="sec-pane active" data-pane="conn">
+          <div class="conn-status">
+            <i class="dot" id="setDot"></i>
+            <div class="cs-txt">
+              <b id="setConnTitle">未连接</b>
+              <span id="setConnSub">—</span>
+            </div>
+            <button class="btn ghost" id="btnRefreshConn" style="height:26px">刷新</button>
+          </div>
+
+          <div class="sgroup">
+            <label class="field-label">连接方式</label>
+            <div class="seg" id="segMode">
+              <button data-mode="proxy" class="on">同源代理</button>
+              <button data-mode="direct">直连手机</button>
+              <button data-mode="demo">演示模式</button>
+            </div>
+            <div class="shelp">代理模式由 serve.py 转发 8808 / 8081，绕开浏览器 CORS 与混合内容限制；直连模式需页面本身跑在 http 源下且浏览器放行跨域，通常只在调试时用。</div>
+          </div>
+
+          <div class="sgroup">
+            <label class="field-label">手机地址</label>
+            <input type="text" id="cfgHost" placeholder="192.168.0.50">
+            <div class="row2">
+              <div>
+                <label class="field-label" style="font-size:10px">控制口 ctl</label>
+                <input type="number" id="cfgCtlPort" value="8808">
+              </div>
+              <div>
+                <label class="field-label" style="font-size:10px">生成口 gen</label>
+                <input type="number" id="cfgGenPort" value="8081">
+              </div>
+            </div>
+          </div>
+
+          <div class="sgroup">
+            <label class="field-label">连通性自检</label>
+            <button class="btn" id="btnSaveTest">保存并测试连接</button>
+            <div class="shelp" id="diagOut">分别探测 8808 与 8081，说明哪个口不通、为什么。</div>
+          </div>
+        </div>
+
+        <!-- ② 生成 -->
+        <div class="sec-pane" data-pane="gen">
+          <div class="sgroup">
+            <label class="field-label">默认反向提示词</label>
+            <textarea id="cfgNeg" rows="3" placeholder="lowres, bad anatomy, ..."></textarea>
+            <div class="shelp">新建会话时填入；提示词面板里已手填的内容不会被覆盖。</div>
+          </div>
+          <div class="sgroup">
+            <div class="switch-row">
+              <div class="lab">默认开启过程预览<small>show_diffusion_process</small></div>
+              <div class="switch" id="cfgShowProc"></div>
+            </div>
+            <div class="shelp">开启后生成过程中逐帧推送中间图，代价是每帧都要传一张 raw 图，弱网下建议关掉。</div>
+          </div>
+          <div class="sgroup">
+            <label class="field-label">默认预览步幅</label>
+            <input type="number" id="cfgStride" min="1" max="20" value="1">
+            <div class="shelp">每 N 步回传一次预览。步幅越大流量越小，画面跳变越明显。</div>
+          </div>
+          <div class="sgroup">
+            <label class="field-label">历史保留上限</label>
+            <input type="number" id="cfgMaxHist" min="6" max="200" value="30">
+            <div class="shelp">超出后丢弃最旧的一张。历史只存在内存里，刷新页面即清空。</div>
+          </div>
+        </div>
+
+        <!-- ③ 外观 -->
+        <div class="sec-pane" data-pane="ui">
+          <div class="sgroup">
+            <label class="field-label">主题</label>
+            <select id="cfgTheme">
+              <option value="dark">深色</option>
+              <option value="oled">OLED 纯黑</option>
+              <option value="light">浅色</option>
+              <option value="auto">跟随系统</option>
+            </select>
+            <div class="shelp">OLED 模式把所有底色压到 #000，适合 OLED 屏省电与高对比；跟随系统读取 <code>prefers-color-scheme</code>。</div>
+          </div>
+          <div class="sgroup">
+            <label class="field-label">强调色</label>
+            <input type="text" id="cfgAccent" placeholder="#6d8cff">
+            <div class="swatches" id="accentSwatches"></div>
+            <div style="display:flex;gap:8px;margin-top:9px">
+              <button class="btn" id="btnAccentFromImage" style="flex:1">从图片取色</button>
+              <button class="btn ghost" id="btnAccentAuto" style="flex:0 0 auto">随机</button>
+              <input type="file" id="fileAccent" accept="image/*" style="display:none">
+            </div>
+            <div class="shelp">浏览器读不到系统级强调色（Windows 主题色 / Android 动态取色都没有对应 Web API），所以这里用「从壁纸图提取主色」来近似 Material You 的效果——算法同样是按色相分桶加权取主色。</div>
+          </div>
+          <div class="sgroup">
+            <div class="switch-row">
+              <div class="lab">减少动效<small>关闭过渡与动画</small></div>
+              <div class="switch" id="cfgReduceMotion"></div>
+            </div>
+            <div class="shelp">关掉按钮位移、弹层淡入等效果，适合录屏或低性能设备。</div>
+          </div>
+        </div>
+
+        <!-- ④ 配置 -->
+        <div class="sec-pane" data-pane="data">
+          <div class="sgroup">
+            <div class="switch-row">
+              <div class="lab">生成后自动保存<small>写入你授权的文件夹</small></div>
+              <div class="switch" id="cfgAutoSave"></div>
+            </div>
+            <div class="save-path" id="savePath">未选择文件夹</div>
+            <div style="display:flex;gap:8px;margin-top:2px">
+              <button class="btn" id="btnPickDir" style="flex:1">选择文件夹</button>
+              <button class="btn ghost" id="btnForgetDir">解除</button>
+            </div>
+            <div class="shelp">走浏览器文件系统权限，只能写进你亲手授权的那个文件夹，页面读不到里面别的东西。需 Chrome / Edge；重开页面可能要再确认一次权限。</div>
+          </div>
+          <div class="sgroup">
+            <label class="field-label">配置备份</label>
+            <div style="display:flex;gap:8px">
+              <button class="btn" id="btnExportCfg" style="flex:1">导出 JSON</button>
+              <button class="btn" id="btnImportCfg" style="flex:1">导入 JSON</button>
+              <input type="file" id="fileCfg" accept=".json" style="display:none">
+            </div>
+            <div class="shelp">包含连接方式、地址、端口、主题与生成偏好，不含作品图。</div>
+          </div>
+          <div class="sgroup">
+            <label class="field-label">本地数据</label>
+            <div class="about-row"><span>历史作品</span><b id="statHist">0 张</b></div>
+            <div class="about-row"><span>配置占用</span><b id="statCfg">—</b></div>
+            <button class="btn danger" id="btnClearHistory" style="margin-top:9px">清空历史作品</button>
+            <div class="shelp">只清当前会话内存里的缩略图，不影响设备上的任何文件。</div>
+          </div>
+        </div>
+
+        <!-- ⑤ 关于 -->
+        <div class="sec-pane" data-pane="about">
+          <div class="sgroup">
+            <label class="field-label">运行时</label>
+            <div id="aboutInfo"></div>
+          </div>
+          <div class="sgroup">
+            <label class="field-label">接口依据</label>
+            <ul class="src-list">
+              <li>Local Dream 官方 HTTP API 参考 · <a href="https://ld-guide.chino.icu/zh/features/http-api" target="_blank" rel="noreferrer">ld-guide.chino.icu/zh/features/http-api</a>（/generate、/tokenize、SSE、scheduler）</li>
+              <li>ld-api 客户端 README · <a href="https://github.com/kongxiangyiren/ld-api" target="_blank" rel="noreferrer">kongxiangyiren/ld-api</a>（双端口、参数表、取消、tokenize）</li>
+              <li>设备互联类型定义 · ld-api <code>src/device.ts</code>（Info / Module / Models / Status）</li>
+              <li>受控模式入口与双端口 · <a href="https://dshpluginhub.ai/zh/plugins/dsh-localdream" target="_blank" rel="noreferrer">dsh-localdream</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <footer class="settings-foot">
+        <button class="btn ghost" id="btnResetCfg">恢复默认</button>
+        <div class="spacer"></div>
+        <button class="btn" id="btnCancelCfg">取消</button>
+        <button class="btn primary" id="btnSaveCfg">保存</button>
+      </footer>
+    </section>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script>
+'use strict';
+/* ═══════════════════════════════════════════════════════════════
+   Local Dream Studio — 受控模式可视化生图前端
+   接口依据：
+     · POST 8081 /generate   SSE: progress | complete | error
+     · POST 8081 /tokenize   {count,max_length,overflow_offset}
+     · GET  8808 /info       {app,version,protocol,device}
+     · GET  8808 /models     {use_img2img,models[],upscalers[]}
+     · POST 8808 /select     {model_id,width,height} -> {ok}
+     · GET  8808 /status     {serving_model_id,state,message,width,height}
+     · POST 8808 /stop       {model_id} -> {ok,ignored?}
+   关键约束：complete.image 是 base64 的 **原始 RGB 字节**，需 reshape 成
+   (h,w,3)；预览图同为 raw。
+   ═══════════════════════════════════════════════════════════════ */
+
+const $  = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const clamp = (v,a,b) => Math.min(b, Math.max(a, v));
+const round8 = v => Math.max(8, Math.ceil(v / 8) * 8);
+const randU32 = () => Math.floor(Math.random() * 4294967296) >>> 0;
+
+/* ───────────── 配置 ───────────── */
+const CFG_KEY = 'ldstudio.config.v1';
+const DEFAULT_CFG = {
+  mode: 'proxy',
+  host: '',
+  ctlPort: 8808,
+  genPort: 8081,
+  theme: 'dark',
+  accent: '#6d8cff',
+  negative: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, jpeg artifacts, signature, watermark, username, blurry',
+  stride: 1,
+  showProcess: true,
+  maxHistory: 30,
+  reduceMotion: false,
+  autoSave: false
+};
+let CFG = loadCfg();
+
+function loadCfg(){
+  try{
+    const raw = localStorage.getItem(CFG_KEY);
+    return raw ? Object.assign({}, DEFAULT_CFG, JSON.parse(raw)) : Object.assign({}, DEFAULT_CFG);
+  }catch{ return Object.assign({}, DEFAULT_CFG); }
+}
+function saveCfg(){ try{ localStorage.setItem(CFG_KEY, JSON.stringify(CFG)); }catch{} }
+
+/* ═════════════ 自动保存目录（File System Access API） ═════════════ */
+const DB_NAME = 'ldstudio', DB_STORE = 'kv';
+const FS_SUPPORTED = !!window.showDirectoryPicker;
+let saveDirHandle = null;
+
+function idbOpen(){
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(DB_STORE)) req.result.createObjectStore(DB_STORE);
+    };
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+}
+async function idbSet(k, v){
+  const db = await idbOpen();
+  try{
+    await new Promise((res, rej) => {
+      const tx = db.transaction(DB_STORE, 'readwrite');
+      tx.objectStore(DB_STORE).put(v, k);
+      tx.oncomplete = () => res();
+      tx.onerror = () => rej(tx.error);
+    });
+  } finally { db.close(); }
+}
+async function idbGet(k){
+  const db = await idbOpen();
+  try{
+    return await new Promise((res, rej) => {
+      const q = db.transaction(DB_STORE, 'readonly').objectStore(DB_STORE).get(k);
+      q.onsuccess = () => res(q.result);
+      q.onerror = () => rej(q.error);
+    });
+  } finally { db.close(); }
+}
+async function idbDel(k){
+  const db = await idbOpen();
+  try{
+    await new Promise((res) => {
+      const tx = db.transaction(DB_STORE, 'readwrite');
+      tx.objectStore(DB_STORE).delete(k);
+      tx.oncomplete = () => res();
+      tx.onerror = () => res();
+    });
+  } finally { db.close(); }
+}
+
+async function pickSaveDir(){
+  if (!FS_SUPPORTED){ toast('当前浏览器不支持目录写入，请用 Chrome / Edge', 'err'); return; }
+  try{
+    const h = await window.showDirectoryPicker({ id: 'ldstudio-out', mode: 'readwrite', startIn: 'pictures' });
+    saveDirHandle = h;
+    await idbSet('saveDir', h);
+    CFG.autoSave = true;
+    saveCfg();
+    fillSettings();
+    toast('已授权写入：' + h.name, 'ok');
+  }catch(e){
+    if (e && e.name !== 'AbortError') toast('目录授权失败：' + (e.message || e.name), 'err');
+  }
+}
+
+async function restoreSaveDir(){
+  if (!FS_SUPPORTED) return;
+  try{
+    const h = await idbGet('saveDir');
+    if (h) saveDirHandle = h;
+  }catch{}
+}
+
+async function forgetSaveDir(){
+  saveDirHandle = null;
+  try{ await idbDel('saveDir'); }catch{}
+  CFG.autoSave = false;
+  saveCfg();
+  fillSettings();
+  toast('已解除自动保存目录');
+}
+
+async function ensureDirPermission(){
+  if (!saveDirHandle) return false;
+  const opt = { mode: 'readwrite' };
+  try{
+    if (await saveDirHandle.queryPermission(opt) === 'granted') return true;
+    return await saveDirHandle.requestPermission(opt) === 'granted';
+  }catch{ return false; }
+}
+
+async function autoSaveImage(blob){
+  if (!CFG.autoSave || !saveDirHandle || !blob) return;
+  if (!await ensureDirPermission()){
+    toast('自动保存失败：目录权限已失效，请在设置里重新授权', 'warn');
+    return;
+  }
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+  const name = `LD_${stamp}_${S.lastSeed != null ? S.lastSeed : 'x'}.png`;
+  try{
+    const fh = await saveDirHandle.getFileHandle(name, { create: true });
+    const w = await fh.createWritable();
+    await w.write(blob);
+    await w.close();
+    toast('已自动保存 ' + name, 'ok');
+  }catch(e){
+    toast('自动保存失败：' + (e.message || e.name), 'err');
+  }
+}
+
+function renderSaveState(){
+  const el = $('#savePath');
+  if (!el) return;
+  if (!FS_SUPPORTED){
+    el.className = 'save-path warn';
+    el.textContent = '当前浏览器不支持目录写入（需 Chrome / Edge）';
+    return;
+  }
+  if (!saveDirHandle){
+    el.className = 'save-path';
+    el.textContent = '未选择文件夹';
+    return;
+  }
+  el.className = 'save-path ok';
+  el.textContent = '当前目录：' + saveDirHandle.name;
+}
+
+function hexToRgb(h){
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h || '');
+  return m ? `${parseInt(m[1],16)},${parseInt(m[2],16)},${parseInt(m[3],16)}` : '109,140,255';
+}
+function rgbToHex(r, g, b){
+  return '#' + [r, g, b].map(v => clamp(Math.round(v), 0, 255).toString(16).padStart(2, '0')).join('');
+}
+function hslToHex(h, s, l){
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+  if (h < 60){ r = c; g = x; }
+  else if (h < 120){ r = x; g = c; }
+  else if (h < 180){ g = c; b = x; }
+  else if (h < 240){ g = x; b = c; }
+  else if (h < 300){ r = x; b = c; }
+  else { r = c; b = x; }
+  return rgbToHex((r + m) * 255, (g + m) * 255, (b + m) * 255);
+}
+function randomAccent(){
+  return hslToHex(Math.random() * 360, 0.62 + Math.random() * 0.2, 0.56 + Math.random() * 0.08);
+}
+
+/** 从图片提取主色：按色相 20° 分桶，用「饱和度 × 明度居中」加权，取权重最高的桶。
+ *  思路与 Material You 的壁纸取色一致，只是简化版。 */
+function extractAccentFromImage(src){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const N = 72;
+      const c = document.createElement('canvas');
+      c.width = N;
+      c.height = Math.max(1, Math.round(N * (img.height / img.width || 1)));
+      const x = c.getContext('2d', { willReadFrequently: true });
+      x.drawImage(img, 0, 0, c.width, c.height);
+      const d = x.getImageData(0, 0, c.width, c.height).data;
+      const buckets = new Map();
+      for (let i = 0; i < d.length; i += 4){
+        const r = d[i], g = d[i + 1], b = d[i + 2];
+        const max = Math.max(r, g, b), min = Math.min(r, g, b);
+        if (max === min) continue;
+        const l = (max + min) / 510;
+        const sat = (max - min) / (255 - Math.abs(max + min - 255));
+        if (l < 0.12 || l > 0.9 || sat < 0.18) continue;   // 跳过接近黑白灰的像素
+        let h;
+        if (max === r) h = ((g - b) / (max - min)) % 6;
+        else if (max === g) h = (b - r) / (max - min) + 2;
+        else h = (r - g) / (max - min) + 4;
+        h = (h * 60 + 360) % 360;
+        const key = Math.floor(h / 20);
+        const cur = buckets.get(key) || { w: 0, r: 0, g: 0, b: 0 };
+        const wgt = sat * (1 - Math.abs(l - 0.5) * 0.8);
+        cur.w += wgt; cur.r += r * wgt; cur.g += g * wgt; cur.b += b * wgt;
+        buckets.set(key, cur);
+      }
+      let best = null;
+      for (const v of buckets.values()) if (!best || v.w > best.w) best = v;
+      if (!best) return reject(new Error('图片里没有可用的彩色区域'));
+      resolve(rgbToHex(best.r / best.w, best.g / best.w, best.b / best.w));
+    };
+    img.onerror = () => reject(new Error('图片读取失败'));
+    img.src = src;
+  });
+}
+const mqDark = window.matchMedia('(prefers-color-scheme: dark)');
+function resolveTheme(){
+  const t = CFG.theme || 'dark';
+  return t === 'auto' ? (mqDark.matches ? 'dark' : 'light') : t;
+}
+const THEME_NAME = { dark: '深色', oled: 'OLED 纯黑', light: '浅色', auto: '跟随系统' };
+function applyTheme(){
+  const t = resolveTheme();
+  document.documentElement.dataset.theme = t;
+  document.documentElement.style.setProperty('--accent', CFG.accent);
+  document.documentElement.style.setProperty('--accent-rgb', hexToRgb(CFG.accent));
+  document.documentElement.classList.toggle('no-anim', !!CFG.reduceMotion);
+  const btn = $('#btnTheme');
+  if (btn) btn.title = '主题：' + (THEME_NAME[t] || t) + '（点击切换）';
+}
+mqDark.addEventListener('change', () => { if (CFG.theme === 'auto') applyTheme(); });
+
+/* ───────────── 运行时状态 ───────────── */
+const S = {
+  info: null,
+  models: [],
+  status: null,
+  model: null,
+  resolution: null,       // [w,h] for models with fixed resolutions
+  w: 512, h: 512,         // 非 SDXL 模型的实际输出尺寸（单一事实来源）
+  useCustomSize: false,
+  aspect: '1:1',
+  aspectKeys: [],
+  genMode: 'txt2img',
+  generating: false,
+  abort: null,
+  step: 0, total: 0, tStart: 0, firstStepMs: 0,
+  seedLocked: false,
+  initImage: null,        // {url,b64,w,h}
+  maskDirty: false,
+  brush: 48,
+  history: [],
+  drawW: 0, drawH: 0,
+  lastSeed: null,
+  cat: 'all'
+};
+
+/* ───────────── 小工具 ───────────── */
+function toast(msg, type){
+  const el = document.createElement('div');
+  el.className = 'toast' + (type ? ' ' + type : '');
+  el.textContent = msg;
+  $('#toasts').appendChild(el);
+  setTimeout(() => { el.style.transition = 'opacity .3s,transform .3s'; el.style.opacity = '0'; el.style.transform = 'translateX(14px)'; }, 2600);
+  setTimeout(() => el.remove(), 3000);
+}
+const fmtS = ms => ms >= 1000 ? (ms / 1000).toFixed(2) + ' s' : Math.round(ms) + ' ms';
+const fmtN = n => (n || 0).toLocaleString('zh-CN');
+
+/* ═════════════ 网络层 ═════════════ */
+function baseUrl(port){
+  if (CFG.mode === 'proxy') return `/p/${port}`;
+  return `http://${CFG.host}:${port}`;
+}
+function headers(extra){
+  const h = Object.assign({}, extra);
+  if (CFG.mode === 'proxy' && CFG.host) h['X-LD-Host'] = CFG.host;
+  return h;
+}
+
+async function ctlFetch(path, opt){
+  opt = opt || {};
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), opt.timeout || 8000);
+  try{
+    const res = await fetch(baseUrl(CFG.ctlPort) + path, {
+      method: opt.method || 'GET',
+      headers: headers(Object.assign({ 'Content-Type': 'application/json' }, opt.headers)),
+      body: opt.body ? JSON.stringify(opt.body) : undefined,
+      signal: ctrl.signal
+    });
+    const text = await res.text();
+    let data = null;
+    try{ data = text ? JSON.parse(text) : null; }catch{}
+    if (!res.ok){
+      const msg = (data && data.error && (data.error.message || data.error)) || `HTTP ${res.status}`;
+      throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+    }
+    return data;
+  } finally { clearTimeout(timer); }
+}
+
+/* ───────────── 连接 ───────────── */
+function setConn(state, text){
+  const dot = $('#connDot');
+  dot.className = 'dot ' + state;
+  $('#connText').textContent = text;
+}
+
+/** 代理模式下如果页面没填地址，试着从 serve.py 的启动参数里取 */
+async function resolveHostFromServer(){
+  if (CFG.mode !== 'proxy') return false;
+  try{
+    const r = await fetch('/api/ping');
+    if (!r.ok) return false;
+    const j = await r.json();
+    if (j && j.default_host){ CFG.host = j.default_host; saveCfg(); fillSettings(); return true; }
+  }catch{}
+  return false;
+}
+
+function renderOnboarding(){
+  $('#devInfo').innerHTML = `
+    <div style="font-size:11px;line-height:1.6;color:var(--text-dim);margin-bottom:7px">
+      填入手机的局域网 IP。手机端需先在 App 里进入受控模式。
+    </div>
+    <input type="text" id="obHost" placeholder="192.168.1.100" style="margin-bottom:6px">
+    <div style="display:flex;gap:6px">
+      <button class="btn" id="obConn" style="flex:1">连接</button>
+      <button class="btn ghost" id="obDemo">演示</button>
+    </div>`;
+  const go = async () => {
+    const v = ($('#obHost').value || '').trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    if (!v){ toast('先填手机 IP', 'warn'); return; }
+    CFG.host = v; CFG.mode = 'proxy'; saveCfg(); fillSettings();
+    await connect(false);
+  };
+  $('#obConn').addEventListener('click', go);
+  $('#obHost').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+  $('#obDemo').addEventListener('click', () => {
+    CFG.mode = 'demo'; saveCfg(); enterDemo();
+  });
+}
+
+/** 「测试连接」：分别探测控制口与生成口，给出可执行的结论 */
+async function diagnose(){
+  if (CFG.mode === 'demo'){ enterDemo(); return; }
+  if (!CFG.host) await resolveHostFromServer();
+  if (!CFG.host){ toast('先在设置里填写手机 IP', 'warn'); openSettings(); return; }
+  if (CFG.mode !== 'proxy'){ await connect(false); return; }
+
+  setConn('wait', '检测中…');
+  try{
+    const r = await fetch('/api/diag?host=' + encodeURIComponent(CFG.host));
+    const d = await r.json();
+    const ctlOk = !!(d.ctl && d.ctl.tcp);
+    const genOk = !!(d.gen && d.gen.tcp);
+
+    if (!ctlOk){
+      setConn('off', '控制口不可达');
+      $('#devInfo').innerHTML = `<div class="warn-line">${escapeHtml(d.hint || '控制口 8808 不可达')}</div>`;
+      toast('控制口 8808 不可达', 'err');
+      return;
+    }
+    S.info = (d.ctl && d.ctl.info) || S.info;
+    renderDevice();
+    setConn(genOk ? 'on' : 'wait', genOk ? `已连接 · v${S.info ? S.info.version : ''}` : '控制口就绪 · 生成口待启动');
+    await loadModels();
+    await refreshStatus();
+    toast(genOk ? '两个端口都就绪' : '生成口未监听，选一个模型即可启动', genOk ? 'ok' : 'warn');
+  }catch(e){
+    setConn('off', '检测失败');
+    toast('检测失败：' + e.message, 'err');
+  }
+}
+
+/** 每次连接尝试递增；迟到的结果若发现序号变了就丢弃，
+ *  避免「设备超时 8 秒后返回失败」把用户已经切过去的新状态覆盖掉。 */
+let connSeq = 0;
+
+async function connect(silent){
+  const seq = ++connSeq;
+  const stale = () => seq !== connSeq;
+  if (CFG.mode === 'demo'){ enterDemo(); return true; }
+  if (!CFG.host) await resolveHostFromServer();
+  if (stale()) return false;
+  if (!CFG.host){ setConn('off', '未配置地址'); if(!silent) toast('请先在设置里填写手机 IP', 'warn'); openSettings(); return false; }
+  setConn('wait', '连接中…');
+  try{
+    const info = await ctlFetch('/info');
+    if (stale()) return false;
+    if (!info || info.app !== 'localdream') throw new Error('该地址不是 Local Dream 受控模式');
+    S.info = info;
+    setConn('on', `已连接 · v${info.version}`);
+    renderDevice();
+    await loadModels();
+    await refreshStatus();
+    return true;
+  }catch(e){
+    if (stale()) return false;
+    const msg = (e && e.name === 'AbortError') ? '连接超时，设备无响应' : (e.message || String(e));
+    setConn('off', '连接失败');
+    if (!silent) toast('连接失败：' + msg, 'err');
+    $('#devInfo').innerHTML = `<div class="warn-line">${escapeHtml(msg)}<br>请确认 App 内已「进入受控模式」，且地址端口可达。</div>`;
+    return false;
+  }
+}
+
+function renderDevice(){
+  const i = S.info;
+  if (!i) return;
+  $('#devVer').textContent = 'protocol ' + i.protocol;
+  $('#devInfo').innerHTML = `
+    <div style="font-size:11.5px;line-height:1.9;color:var(--text-dim)">
+      <div style="display:flex;justify-content:space-between"><span>设备</span><b style="color:var(--text);font-weight:560">${escapeHtml(i.device || '—')}</b></div>
+      <div style="display:flex;justify-content:space-between"><span>App</span><b style="color:var(--text);font-weight:560">${escapeHtml(i.app)}</b></div>
+      <div style="display:flex;justify-content:space-between"><span>版本</span><b style="color:var(--text);font-weight:560;font-family:var(--font)">${escapeHtml(i.version)}</b></div>
+      <div style="display:flex;justify-content:space-between"><span>地址</span><b style="color:var(--text);font-weight:560;font-family:var(--font)">${escapeHtml(CFG.host || 'local')}</b></div>
+    </div>`;
+}
+
+async function loadModels(){
+  const data = await ctlFetch('/models');
+  S.models = (data && data.models) || [];
+  renderModels();
+}
+
+const CATS = [
+  { key: 'sd15', label: 'SD 1.5' },
+  { key: 'sdxl', label: 'SDXL' },
+  { key: 'dit', label: 'DiT' },
+  { key: 'anima', label: 'Anima' }
+];
+/** 模型归类：dit_kind 最具体，先判；其次 sdxl / anima，剩下的算 SD1.5 */
+function categorize(m){
+  if (m.dit_kind) return 'dit';
+  if (m.is_sdxl) return 'sdxl';
+  if (m.is_anima) return 'anima';
+  return 'sd15';
+}
+
+function renderCatChips(){
+  const box = $('#catChips');
+  if (!S.models.length){ box.innerHTML = ''; return; }
+  const counts = {};
+  S.models.forEach(m => { const k = categorize(m); counts[k] = (counts[k] || 0) + 1; });
+  const items = [{ key: 'all', label: '全部', n: S.models.length }]
+    .concat(CATS.filter(c => counts[c.key]).map(c => ({ key: c.key, label: c.label, n: counts[c.key] })));
+  if (!items.some(i => i.key === S.cat)) S.cat = 'all';
+  box.innerHTML = items.map(it =>
+    `<span class="chip${S.cat === it.key ? ' on' : ''}" data-cat="${it.key}">${it.label}<span style="opacity:.5;margin-left:4px">${it.n}</span></span>`
+  ).join('');
+  box.querySelectorAll('[data-cat]').forEach(c => c.addEventListener('click', () => {
+    S.cat = c.dataset.cat;
+    renderModels();
+  }));
+}
+
+function modelCardHtml(m){
+  const tags = [];
+  tags.push(m.run_on_cpu ? '<span class="tag cpu">CPU</span>' : '<span class="tag npu">NPU</span>');
+  if (m.is_sdxl) tags.push('<span class="tag sdxl">SDXL</span>');
+  if (m.is_anima) tags.push('<span class="tag">Anima</span>');
+  if (m.dit_kind) tags.push(`<span class="tag">${escapeHtml(m.dit_kind)}</span>`);
+  if (m.is_custom) tags.push('<span class="tag">自定义</span>');
+  if (m.resolutions && m.resolutions.length) tags.push(`<span class="tag">${m.resolutions.length} 分辨率</span>`);
+  const active = S.model && S.model.id === m.id;
+  const busy = S.status && S.status.state === 'starting' && S.status.serving_model_id === m.id;
+  return `<div class="model-card${active ? ' active' : ''}${busy ? ' loading' : ''}" data-id="${escapeHtml(m.id)}">
+    <div class="mc-top">
+      <div class="mc-name">${escapeHtml(m.name || m.id)}</div>
+      <div class="mc-size">${m.generation_size || '?'}px</div>
+    </div>
+    ${m.description ? `<div class="mc-desc">${escapeHtml(m.description)}</div>` : ''}
+    <div class="mc-tags">${tags.join('')}</div>
+  </div>`;
+}
+
+function renderModels(){
+  const box = $('#modelList');
+  $('#modelCount').textContent = S.models.length ? S.models.length + ' 个' : '';
+  renderCatChips();
+  if (!S.models.length){
+    box.innerHTML = '<div class="empty-line">设备上没有可用模型</div>';
+    return;
+  }
+  const visible = S.models.filter(m => S.cat === 'all' || categorize(m) === S.cat);
+  if (!visible.length){
+    box.innerHTML = '<div class="empty-line">该分类下没有模型</div>';
+    return;
+  }
+  let html = '';
+  if (S.cat === 'all'){
+    CATS.forEach(c => {
+      const list = visible.filter(m => categorize(m) === c.key);
+      if (list.length) html += `<div class="mgroup">${c.label}</div>` + list.map(modelCardHtml).join('');
+    });
+  } else {
+    html = visible.map(modelCardHtml).join('');
+  }
+  box.innerHTML = html;
+  box.querySelectorAll('.model-card').forEach(card => {
+    card.addEventListener('click', () => selectModel(card.dataset.id));
+  });
+}
+
+/* ───────────── 尺寸解算 ───────────── */
+function aspectToSize(ar, longEdge){
+  const p = String(ar).split(':').map(Number);
+  const w = p[0] || 1, h = p[1] || 1;
+  if (w >= h) return [longEdge, round8(longEdge * h / w)];
+  return [round8(longEdge * w / h), longEdge];
+}
+function currentSize(){
+  const m = S.model;
+  if (!m) return [512, 512];
+  if (m.is_sdxl) return aspectToSize(S.aspect, m.generation_size || 1024);
+  return [round8(S.w || 512), round8(S.h || 512)];
+}
+
+/** 模型切换时决定默认输出尺寸：有分辨率表就用第一项，否则用模型基准尺寸 */
+function resetSizeForModel(m){
+  S.useCustomSize = false;
+  if (!m){ S.w = S.h = 512; return; }
+  if (m.is_sdxl){ S.aspect = '1:1'; return; }
+  const res = m.resolutions || [];
+  if (res.length){ S.w = res[0][0]; S.h = res[0][1]; }
+  else {
+    // 实测：Anima / DiT 模型 resolutions 为空但 width/height 有效，基准是 generation_size
+    const base = m.generation_size || 1024;
+    S.w = base; S.h = base;
+  }
+}
+
+function syncModelDefaults(m){
+  const d = m.defaults || {};
+  const steps = d.steps != null ? d.steps : 20;
+  const cfg = d.cfg != null ? d.cfg : 7.5;
+  $('#steps').value = steps; $('#stepsVal').textContent = steps; setRangeFill($('#steps'));
+  $('#cfg').value = cfg; $('#cfgVal').textContent = Number(cfg).toFixed(1); setRangeFill($('#cfg'));
+  if (d.scheduler) $('#scheduler').value = d.scheduler;
+  if (!$('#prompt').value && d.prompt) $('#prompt').value = d.prompt;
+  $('#negPrompt').value = $('#negPrompt').value || (d.negative_prompt || CFG.negative);
+}
+
+function renderSizeControls(){
+  const m = S.model;
+  const chips = $('#sizeChips');
+  const whWrap = $('#whWrap');
+  const hint = $('#sizeHint');
+  $('#sizeWarn').style.display = 'none';
+  chips.innerHTML = '';
+
+  if (!m){ chips.innerHTML = '<span class="empty-line" style="padding:0">先选模型</span>'; whWrap.style.display = 'none'; return; }
+
+  // SDXL：尺寸完全由 aspect_ratio 决定，实测传 width/height 会被忽略
+  if (m.is_sdxl){
+    hint.textContent = 'aspect_ratio · SDXL';
+    whWrap.style.display = 'none';
+    const list = ['1:1', '4:3', '3:4', '16:9', '9:16', '3:2', '2:3'];
+    S.aspectKeys = list;
+    if (!list.includes(S.aspect)) S.aspect = '1:1';
+    chips.innerHTML = list.map(a => {
+      const s = aspectToSize(a, m.generation_size || 1024);
+      return `<span class="chip${a === S.aspect ? ' on' : ''}" data-aspect="${a}">${a} <small style="opacity:.55;margin-left:3px">${s[0]}×${s[1]}</small></span>`;
+    }).join('');
+    chips.querySelectorAll('[data-aspect]').forEach(c => c.addEventListener('click', () => {
+      S.aspect = c.dataset.aspect;
+      renderSizeControls(); updateHudModel();
+    }));
+    return;
+  }
+
+  // 其余模型：width / height 生效（实测 SD1.5 与 DiT 均如此）
+  const presets = (m.resolutions && m.resolutions.length)
+    ? m.resolutions.map(r => [r[0], r[1]])
+    : [[m.generation_size || 1024, m.generation_size || 1024], [512, 512], [768, 1024], [1024, 768]];
+  hint.textContent = (m.resolutions && m.resolutions.length) ? '推荐分辨率' : 'width / height 生效';
+
+  const isCurrent = (w, h) => !S.useCustomSize && S.w === w && S.h === h;
+  chips.innerHTML =
+    presets.map(([w, h]) =>
+      `<span class="chip${isCurrent(w, h) ? ' on' : ''}" data-res="${w}x${h}">${w}×${h}</span>`).join('') +
+    `<span class="chip${S.useCustomSize ? ' on' : ''}" data-custom="1">自定义</span>`;
+
+  chips.querySelectorAll('[data-res]').forEach(c => c.addEventListener('click', () => {
+    const [w, h] = c.dataset.res.split('x').map(Number);
+    applyResolution(w, h);
+  }));
+  chips.querySelector('[data-custom]').addEventListener('click', () => {
+    S.useCustomSize = true;
+    $('#inW').value = S.w; $('#inH').value = S.h;
+    renderSizeControls();
+    updateSizeWarn();
+  });
+
+  whWrap.style.display = S.useCustomSize ? '' : 'none';
+  if (S.useCustomSize){ $('#inW').value = S.w; $('#inH').value = S.h; }
+}
+
+function updateSizeWarn(){
+  const warn = $('#sizeWarn');
+  const m = S.model;
+  if (!m || m.is_sdxl || !S.useCustomSize){ warn.style.display = 'none'; return; }
+  const w = parseInt($('#inW').value) || 0;
+  const h = parseInt($('#inH').value) || 0;
+  if (w > 0 && h > 0){ S.w = w; S.h = h; }
+  if (w % 8 || h % 8 || w < 64 || h < 64){
+    warn.style.display = '';
+    warn.textContent = '宽高建议为 8 的倍数且 ≥ 64，发送时会自动对齐。';
+  } else warn.style.display = 'none';
+  updateHudModel();
+}
+
+/** 实测：/status 已报 running，但 8081 仍可能短暂未监听（native 后端刚拉起）。
+ *  用文档内的 /tokenize 探活，直到真正能响应为止。 */
+async function waitGenReady(timeoutMs){
+  const t0 = Date.now();
+  while (Date.now() - t0 < (timeoutMs || 15000)){
+    try{
+      const r = await fetch(baseUrl(CFG.genPort) + '/tokenize', {
+        method: 'POST',
+        headers: headers({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ prompt: 'ready' })
+      });
+      if (r.ok) return true;
+    }catch{}
+    await new Promise(r => setTimeout(r, 400));
+  }
+  return false;
+}
+
+/* ───────────── 模型选择（含状态轮询） ───────────── */
+/** 切换分辨率必须重新 /select —— NPU 模式下生成尺寸必须与挂载时一致 */
+async function applyResolution(w, h){
+  S.useCustomSize = false;
+  S.w = w; S.h = h;
+  S.resolution = [w, h];
+  renderSizeControls();
+  updateHudModel();
+  if (CFG.mode === 'demo'){
+    if (S.status){ S.status.width = w; S.status.height = h; renderStatus(); }
+    return;
+  }
+  if (!S.model) return;
+  try{
+    setConn('wait', '切换分辨率…');
+    await ctlFetch('/select', { method: 'POST', body: { model_id: S.model.id, width: w, height: h } });
+    const ok = await pollStatus(S.model.id, 45000);
+    setConn(ok ? 'on' : 'off', ok ? '模型就绪' : '切换失败');
+    if (ok) toast(`已切换到 ${w}×${h}`, 'ok');
+    else toast('分辨率切换未就绪，后端仍挂载旧尺寸', 'warn');
+  }catch(e){
+    setConn('off', '切换失败');
+    toast('切换失败：' + e.message, 'err');
+  }
+}
+
+async function selectModel(id){
+  const m = S.models.find(x => x.id === id);
+  if (!m) return;
+  S.model = m;
+  resetSizeForModel(m);
+  syncModelDefaults(m);
+  renderModels();
+  renderSizeControls();
+  updateHudModel();
+
+  if (CFG.mode === 'demo'){
+    S.status = { serving_model_id: m.id, state: 'running', width: currentSize()[0], height: currentSize()[1], message: null };
+    renderStatus(); return;
+  }
+  const [w, h] = currentSize();
+  try{
+    setConn('wait', '载入模型…');
+    const r = await ctlFetch('/select', { method: 'POST', body: { model_id: m.id, width: w, height: h } });
+    if (r && r.ok === false) throw new Error('后端拒绝载入该模型');
+    const ok = await pollStatus(m.id, 45000);
+    if (ok) await waitGenReady(15000);
+    setConn(ok ? 'on' : 'off', ok ? '模型就绪' : '模型不可用');
+    if (!ok){
+      const msg = (S.status && S.status.state === 'error' && S.status.message) || '';
+      toast(msg ? ('模型加载失败：' + msg) : '模型载入超时，检查设备内存或换小一点的模型', 'err');
+    }
+  }catch(e){
+    setConn('off', '载入失败');
+    toast('载入失败：' + e.message, 'err');
+  }
+}
+
+async function pollStatus(modelId, timeoutMs){
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeoutMs){
+    try{
+      const st = await ctlFetch('/status');
+      S.status = st;
+      renderStatus();
+      if (st.state === 'running' && (!modelId || st.serving_model_id === modelId)) return true;
+      if (st.state === 'error') return false;
+    }catch{}
+    await new Promise(r => setTimeout(r, 500));
+  }
+  return false;
+}
+
+async function refreshStatus(){
+  try{
+    const st = await ctlFetch('/status');
+    S.status = st;
+    renderStatus();
+    if (st.state === 'running' && st.serving_model_id){
+      const m = S.models.find(x => x.id === st.serving_model_id);
+      if (m && (!S.model || S.model.id !== m.id)){
+        S.model = m;
+        if (m.resolutions && m.resolutions.length && st.width && st.height){
+          S.resolution = [st.width, st.height];
+        }
+        syncModelDefaults(m);
+        renderModels(); renderSizeControls(); updateHudModel();
+      }
+    }
+  }catch{}
+}
+
+function renderStatus(){
+  const st = S.status;
+  const box = $('#statusBox');
+  if (!st){ box.textContent = '—'; return; }
+  const map = { idle: ['空闲', ''], starting: ['载入中', 'wait'], running: ['运行中', 'on'], error: ['错误', 'off'] };
+  const [label, cls] = map[st.state] || [st.state, ''];
+  box.innerHTML = `
+    <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--text-dim)">
+      <i class="dot ${cls}"></i><b style="color:var(--text);font-weight:560">${label}</b>
+    </div>
+    <div style="font-size:10.5px;line-height:1.85;color:var(--text-faint);margin-top:5px;font-family:var(--font)">
+      <div>model: ${escapeHtml(st.serving_model_id || '—')}</div>
+      <div>size: ${st.width || '—'} × ${st.height || '—'}</div>
+      ${st.message ? `<div style="color:var(--warn)">${escapeHtml(st.message)}</div>` : ''}
+    </div>`;
+}
+
+function updateHudModel(){
+  const m = S.model;
+  const el = $('#hudModel');
+  if (!m){ el.textContent = ''; return; }
+  const [w, h] = currentSize();
+  el.textContent = `${m.name || m.id} · ${w}×${h}`;
+}
+
+/* ═════════════ 图像解码 ═════════════ */
+function b64ToBytes(b64){
+  const bin = atob(b64);
+  const n = bin.length;
+  const out = new Uint8Array(n);
+  for (let i = 0; i < n; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+/** 从字节数反推 (w,h)：优先用已知尺寸，其次按宽高比猜 */
+function inferDims(byteLen, hintW, hintH){
+  const px = byteLen / 3;
+  if (!Number.isInteger(px) || px <= 0) return null;
+  if (hintW && hintH && hintW * hintH === px) return [hintW, hintH];
+  if (hintW && hintH){
+    const ar = hintW / hintH;
+    const guess = Math.round(Math.sqrt(px * ar));
+    for (let d = -3; d <= 3; d++){
+      const w = guess + d;
+      if (w > 0 && px % w === 0){
+        const h = px / w;
+        if (Math.abs(h / w - 1 / ar) < 0.03) return [w, h];
+      }
+    }
+  }
+  const s = Math.round(Math.sqrt(px));
+  if (s * s === px) return [s, s];
+  for (let w = Math.ceil(Math.sqrt(px)); w <= px; w++){
+    if (px % w === 0){ const h = px / w; if (h <= w) return [w, h]; }
+  }
+  return null;
+}
+
+const stage = $('#stage');
+const sctx = stage.getContext('2d');
+let off = document.createElement('canvas');
+let offctx = off.getContext('2d');
+
+/** raw RGB base64 → ImageData */
+function rawToImageData(b64, hintW, hintH){
+  const bytes = b64ToBytes(b64);
+  const dims = inferDims(bytes.length, hintW, hintH);
+  if (!dims) return null;
+  const [w, h] = dims;
+  const rgba = new Uint8ClampedArray(w * h * 4);
+  for (let i = 0, j = 0; j < rgba.length; i += 3, j += 4){
+    rgba[j] = bytes[i]; rgba[j + 1] = bytes[i + 1]; rgba[j + 2] = bytes[i + 2]; rgba[j + 3] = 255;
+  }
+  return new ImageData(rgba, w, h);
+}
+
+function paintToStage(imgData){
+  if (!imgData) return;
+  const { width: w, height: h } = imgData;
+  const sizeChanged = (stage.width !== w || stage.height !== h);
+  if (off.width !== w || off.height !== h){
+    off.width = w; off.height = h;
+  }
+  offctx.putImageData(imgData, 0, 0);
+  if (sizeChanged){
+    stage.width = w; stage.height = h;
+  }
+  sctx.clearRect(0, 0, w, h);
+  sctx.drawImage(off, 0, 0);
+  S.drawW = w; S.drawH = h;
+  $('#stageFrame').style.display = '';
+  $('#emptyStage').style.display = 'none';
+  // 生成过程中不要重置蒙版（尺寸变化时 syncMaskSize 会清空）
+  if (!S.generating) syncMaskSize(w, h);
+  if (sizeChanged) resetView(); else applyZoom();
+}
+
+/* ───────────── 画布缩放 / 平移 ───────────── */
+const Z = { mode: 'fit', scale: 1, tx: 0, ty: 0, fit: 1 };
+
+function computeFit(){
+  const vp = $('#stageViewport');
+  const w = stage.width || 512, h = stage.height || 512;
+  const vw = Math.max(48, vp.clientWidth - 26);
+  const vh = Math.max(48, vp.clientHeight - 26);
+  return Math.min(vw / w, vh / h);
+}
+function currentScale(){ return Z.mode === 'fit' ? Z.fit : Z.scale; }
+
+function applyZoom(){
+  const frame = $('#stageFrame');
+  if (!frame) return;
+  Z.fit = computeFit();
+  const s = currentScale();
+  frame.style.transform = `translate(${Z.tx}px, ${Z.ty}px) scale(${s})`;
+
+  const sel = $('#zoomSel');
+  if (sel){
+    const fitOpt = sel.querySelector('option[value="fit"]');
+    if (fitOpt) fitOpt.textContent = '适应 ' + Math.round(Z.fit * 100) + '%';
+    if (Z.mode === 'fit'){
+      sel.value = 'fit';
+    } else {
+      const val = Z.scale.toFixed(3);
+      let opt = sel.querySelector('option[value="' + val + '"]');
+      if (!opt){
+        opt = document.createElement('option');
+        opt.value = val;
+        opt.dataset.tmp = '1';
+        sel.appendChild(opt);
+      }
+      opt.textContent = Math.round(Z.scale * 100) + '%';
+      Array.from(sel.options).forEach(o => {
+        if (o.dataset && o.dataset.tmp === '1' && o.value !== val) o.remove();
+      });
+      sel.value = val;
+    }
+  }
+  const vp = $('#stageViewport');
+  if (vp) vp.classList.toggle('pannable', Z.mode !== 'fit' || s > Z.fit + 0.001);
+  const tools = $('#stageTools');
+  if (tools) tools.classList.toggle('pinned', Z.mode !== 'fit');
+}
+
+function resetView(){
+  Z.mode = 'fit'; Z.scale = 1; Z.tx = 0; Z.ty = 0;
+  applyZoom();
+}
+
+function zoomAt(clientX, clientY, factor){
+  const vp = $('#stageViewport');
+  const r = vp.getBoundingClientRect();
+  const cx = clientX - r.left - r.width / 2;
+  const cy = clientY - r.top - r.height / 2;
+  const cur = currentScale();
+  const next = clamp(cur * factor, Math.max(0.02, Z.fit * 0.1), 20);
+  if (Math.abs(next - cur) < 1e-6) return;
+  // 让光标下的图像点保持不动
+  Z.tx = cx - (cx - Z.tx) * (next / cur);
+  Z.ty = cy - (cy - Z.ty) * (next / cur);
+  Z.mode = 'num';
+  Z.scale = next;
+  applyZoom();
+}
+
+/* ───────────── 蒙版画布 ───────────── */
+const maskCanvas = $('#maskCanvas');
+const mctx = maskCanvas.getContext('2d');
+function syncMaskSize(w, h){
+  if (maskCanvas.width !== w || maskCanvas.height !== h){
+    maskCanvas.width = w; maskCanvas.height = h;
+    S.maskDirty = false;
+    mctx.clearRect(0, 0, w, h);
+  }
+}
+function maskPointerPos(e){
+  const r = maskCanvas.getBoundingClientRect();
+  const x = (e.clientX - r.left) / r.width * maskCanvas.width;
+  const y = (e.clientY - r.top) / r.height * maskCanvas.height;
+  return [x, y];
+}
+let painting = false;
+maskCanvas.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  painting = true; maskCanvas.setPointerCapture(e.pointerId);
+  const [x, y] = maskPointerPos(e);
+  mctx.lineWidth = S.brush; mctx.lineCap = 'round'; mctx.lineJoin = 'round';
+  mctx.strokeStyle = 'rgba(255,80,120,.55)';
+  mctx.beginPath(); mctx.moveTo(x, y); mctx.lineTo(x + .01, y); mctx.stroke();
+  S.maskDirty = true;
+});
+maskCanvas.addEventListener('pointermove', e => {
+  if (!painting) return;
+  const [x, y] = maskPointerPos(e);
+  mctx.lineWidth = S.brush; mctx.lineCap = 'round'; mctx.lineJoin = 'round';
+  mctx.strokeStyle = 'rgba(255,80,120,.55)';
+  mctx.lineTo(x, y); mctx.stroke();
+});
+['pointerup', 'pointercancel', 'pointerleave'].forEach(ev =>
+  maskCanvas.addEventListener(ev, () => { painting = false; }));
+
+/** 把涂抹层导出成后端要的黑白蒙版 PNG（白=重绘区） */
+function exportMaskB64(){
+  const w = maskCanvas.width, h = maskCanvas.height;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d');
+  x.fillStyle = '#000'; x.fillRect(0, 0, w, h);
+  const src = mctx.getImageData(0, 0, w, h).data;
+  const img = x.getImageData(0, 0, w, h);
+  const d = img.data;
+  for (let i = 0; i < src.length; i += 4){
+    const on = src[i + 3] > 24 ? 255 : 0;
+    d[i] = on; d[i + 1] = on; d[i + 2] = on; d[i + 3] = 255;
+  }
+  x.putImageData(img, 0, 0);
+  return c.toDataURL('image/png').split(',')[1];
+}
+
+/* ═════════════ SSE 流 ═════════════ */
+async function readSSE(res, onEvent, signal){
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  for (;;){
+    if (signal && signal.aborted){ reader.cancel().catch(() => {}); throw new DOMException('Aborted', 'AbortError'); }
+    const { done, value } = await reader.read();
+    if (done){
+      if (buf.trim()) { const ev = parseLine(buf.trim()); if (ev) onEvent(ev); }
+      break;
+    }
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop() || '';
+    for (const line of lines){
+      const ev = parseLine(line);
+      if (ev) onEvent(ev);
+    }
+  }
+  reader.releaseLock();
+}
+function parseLine(line){
+  const t = line.endsWith('\r') ? line.slice(0, -1) : line;
+  if (!t.startsWith('data:')) return null;
+  const c = t.slice(5).trim();
+  if (!c || c === '[DONE]') return null;
+  try{ return JSON.parse(c); }catch{ return null; }
+}
+
+/* ═════════════ 生成 ═════════════ */
+function buildBody(){
+  const m = S.model;
+  const [w, h] = currentSize();
+  const body = {
+    prompt: $('#prompt').value.trim(),
+    negative_prompt: $('#negPrompt').value.trim(),
+    steps: parseInt($('#steps').value),
+    cfg: parseFloat($('#cfg').value),
+    scheduler: $('#scheduler').value,
+    show_diffusion_process: $('#swProcess').classList.contains('on'),
+    show_diffusion_stride: parseInt($('#stride').value)
+  };
+  const seedRaw = $('#seedInput').value.trim();
+  if (seedRaw !== '') body.seed = parseInt(seedRaw) >>> 0;
+
+  if (m && m.is_sdxl) body.aspect_ratio = S.aspect;
+  else { body.width = w; body.height = h; }
+
+  if (m && m.run_on_cpu) body.use_opencl = $('#swOpencl').classList.contains('on');
+
+  if (S.genMode !== 'txt2img' && S.initImage){
+    body.image = S.initImage.b64;
+    body.denoise_strength = parseFloat($('#denoise').value);
+    if (S.genMode === 'inpaint' && S.maskDirty) body.mask = exportMaskB64();
+  }
+  return body;
+}
+
+function setGenerating(on){
+  S.generating = on;
+  const btn = $('#btnGen');
+  btn.classList.toggle('cancel', on);
+  $('#btnGenText').textContent = on ? '取消生成' : '生成';
+  $('#btnGen').disabled = false;
+  $('#stageProg').classList.toggle('on', on);
+  if (!on){
+    $('#hudStep').style.display = 'none';
+    $('#hudEta').style.display = 'none';
+  }
+}
+
+async function doGenerate(){
+  if (S.generating){ if (S.abort) S.abort.abort(); return; }
+  if (!S.model){ toast('先选一个模型', 'warn'); return; }
+  const prompt = $('#prompt').value.trim();
+  if (!prompt){ toast('提示词不能为空', 'warn'); $('#prompt').focus(); return; }
+  if (S.genMode !== 'txt2img' && !S.initImage){ toast('请先上传输入图', 'warn'); return; }
+
+  const body = buildBody();
+  const [w, h] = currentSize();
+
+  S.step = 0; S.total = body.steps || 20; S.tStart = performance.now(); S.firstStepMs = 0;
+  setGenerating(true);
+  $('#hudStep').style.display = '';
+  $('#hudStep').textContent = `0 / ${S.total}`;
+  $('#stageProgBar').style.width = '0%';
+  $('#hudEta').style.display = 'none';
+  $('#resultMeta').innerHTML = '';
+
+  if (CFG.mode === 'demo'){ await demoGenerate(body, w, h); return; }
+
+  const ctrl = new AbortController();
+  S.abort = ctrl;
+
+  try{
+    const genUrl = baseUrl(CFG.genPort) + '/generate';
+    const genOpts = {
+      method: 'POST',
+      headers: headers({ 'Content-Type': 'application/json', Accept: 'text/event-stream' }),
+      body: JSON.stringify(body),
+      signal: ctrl.signal
+    };
+    let res;
+    try{
+      res = await fetch(genUrl, genOpts);
+    }catch(err){
+      if (err.name === 'AbortError') throw err;
+      // 冷启动空窗：8081 尚未监听，等它就绪后重试一次
+      toast('生成口尚未就绪，等待后重试…', 'warn');
+      if (!await waitGenReady(10000)){
+        throw new Error('生成口 8081 未监听。请确认 App 内模型已加载完成，或重新点一次模型卡片。');
+      }
+      res = await fetch(genUrl, genOpts);
+    }
+    const ct = (res.headers.get('content-type') || '').toLowerCase();
+    if (!ct.includes('text/event-stream')){
+      const txt = await res.text();
+      let msg = `HTTP ${res.status}`;
+      try{ const j = JSON.parse(txt); msg = (j.error && (j.error.message || j.error)) || msg; }catch{ if (txt) msg = txt.slice(0, 200); }
+      throw new Error(msg);
+    }
+
+    let final = null, errored = null;
+    await readSSE(res, ev => {
+      if (ev.type === 'progress'){
+        S.step = ev.step;
+        if (!S.firstStepMs && ev.step >= 1) S.firstStepMs = performance.now() - S.tStart;
+        updateProgress();
+        if (ev.image){
+          try{
+            const id = rawToImageData(ev.image, w, h);
+            if (id) paintToStage(id);
+          }catch{}
+        }
+      } else if (ev.type === 'complete'){
+        final = ev;
+      } else if (ev.type === 'error' || ev.type === 'request_error'){
+        errored = ev.message || '生成失败';
+      }
+    }, ctrl.signal);
+
+    if (errored) throw new Error(errored);
+    if (!final) throw new Error('没有收到 complete 事件（后端可能中途被回收，重试一次）');
+    finishGeneration(final, body);
+  }catch(e){
+    if (e.name === 'AbortError'){ toast('已取消生成', 'warn'); }
+    else if (e instanceof TypeError){ toast('连不上生成口 8081：模型后端可能未启动，重新点一次模型卡片再试', 'err'); }
+    else toast('生成失败：' + e.message, 'err');
+  }finally{
+    S.abort = null;
+    setGenerating(false);
+  }
+}
+
+function updateProgress(){
+  const total = S.total || 1;
+  const pct = clamp(S.step / total * 100, 0, 100);
+  $('#stageProgBar').style.width = pct.toFixed(1) + '%';
+  $('#hudStep').textContent = `${S.step} / ${total}`;
+  if (S.step > 0){
+    const elapsed = performance.now() - S.tStart;
+    const per = elapsed / S.step;
+    const remain = per * (total - S.step);
+    $('#hudEta').style.display = '';
+    $('#hudEta').textContent = remain > 300 ? `剩 ~${(remain / 1000).toFixed(1)}s` : '收尾…';
+  }
+}
+
+function finishGeneration(final, body){
+  const id = rawToImageData(final.image, final.width, final.height);
+  if (id) paintToStage(id);
+  $('#stageProgBar').style.width = '100%';
+  $('#hudStep').textContent = `${final.width} × ${final.height}`;
+  $('#hudEta').style.display = 'none';
+
+  const seed = final.seed;
+  S.lastSeed = seed;
+  // 生成后自动换一个新的随机种子，免得每次都要手动点骰子；锁定状态则不动
+  if (!S.seedLocked) $('#seedInput').value = randU32();
+
+  $('#resultMeta').innerHTML =
+    `<span>seed <b>${seed}</b></span>` +
+    `<span>尺寸 <b>${final.width}×${final.height}</b></span>` +
+    `<span>首步 <b>${fmtS(final.first_step_time_ms || 0)}</b></span>` +
+    `<span>总耗时 <b>${fmtS(final.generation_time_ms || 0)}</b></span>` +
+    `<span style="margin-left:auto;display:flex;gap:10px">
+       <a href="#" id="lnkDl" style="color:var(--accent);text-decoration:none">下载 PNG</a>
+       <a href="#" id="lnkReuse" style="color:var(--accent);text-decoration:none">固种重跑</a>
+     </span>`;
+
+  const dataUrl = stage.toDataURL('image/png');
+  addHistory(dataUrl, { seed, prompt: body.prompt, w: final.width, h: final.height });
+  stage.toBlob(b => autoSaveImage(b), 'image/png');
+
+  const dl = $('#lnkDl');
+  if (dl) dl.onclick = e => {
+    e.preventDefault();
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `ld-${seed}-${final.width}x${final.height}.png`;
+    a.click();
+  };
+  const reuse = $('#lnkReuse');
+  if (reuse) reuse.onclick = e => {
+    e.preventDefault();
+    // 生成后种子已被换掉，这里把本次用的种子填回去再跑
+    if (S.lastSeed != null) $('#seedInput').value = S.lastSeed;
+    doGenerate();
+  };
+
+  toast('生成完成 · ' + fmtS(final.generation_time_ms || 0), 'ok');
+}
+
+/* ───────────── 历史 ───────────── */
+function addHistory(dataUrl, meta){
+  S.history.unshift({ dataUrl, meta });
+  const cap = Math.max(6, CFG.maxHistory || 30);
+  while (S.history.length > cap) S.history.pop();
+  renderHistory();
+}
+function renderHistory(){
+  const box = $('#history');
+  $('#histCount').textContent = S.history.length ? S.history.length + ' 张' : '';
+  if (!S.history.length){ box.innerHTML = '<div class="empty-line" style="grid-column:1/-1;padding:8px 0">还没有作品</div>'; return; }
+  box.innerHTML = S.history.map((it, i) =>
+    `<div class="hist-item" data-i="${i}" title="seed ${it.meta.seed}"><img src="${it.dataUrl}" alt=""></div>`
+  ).join('');
+  box.querySelectorAll('.hist-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const it = S.history[+el.dataset.i];
+      const img = new Image();
+      img.onload = () => {
+        off.width = img.width; off.height = img.height;
+        offctx.drawImage(img, 0, 0);
+        stage.width = img.width; stage.height = img.height;
+        sctx.drawImage(img, 0, 0);
+        $('#stageFrame').style.display = '';
+        $('#emptyStage').style.display = 'none';
+        $('#hudModel').textContent = `${img.width}×${img.height} · 历史`;
+        $('#resultMeta').innerHTML = `<span>seed <b>${it.meta.seed}</b></span><span style="color:var(--text-faint)">${escapeHtml(it.meta.prompt || '').slice(0, 60)}</span>`;
+        resetView();
+      };
+      img.src = it.dataUrl;
+    });
+  });
+}
+
+/* ───────────── 演示模式 ───────────── */
+function enterDemo(){
+  connSeq++;   // 让任何在途的连接尝试作废
+  setConn('demo', '演示模式 · 无设备');
+  S.info = { app: 'localdream', version: '3.0.0-demo', protocol: 1, device: 'Demo Device' };
+  $('#devVer').textContent = 'protocol 1';
+  $('#devInfo').innerHTML = `<div class="warn-line">当前为演示模式：所有图像由浏览器本地合成，不会连接任何设备。用于预览界面与交互流程。</div>`;
+  S.models = [
+    {
+      id: 'sd15_qnn_512', name: 'SD 1.5 · QNN', description: '骁龙 NPU 后端，固定分辨率集合',
+      run_on_cpu: false, is_sdxl: false, is_anima: false, dit_kind: '', is_custom: false,
+      generation_size: 512, resolutions: [[512, 512], [512, 768], [768, 512]],
+      defaults: { prompt: '', negative_prompt: '', steps: 20, cfg: 7.5, scheduler: 'dpm' }
+    },
+    {
+      id: 'sdxl_qnn', name: 'SDXL · QNN', description: '1024 计算图，按 aspect_ratio 裁切输出',
+      run_on_cpu: false, is_sdxl: true, is_anima: false, dit_kind: '', is_custom: false,
+      generation_size: 1024, resolutions: [],
+      defaults: { prompt: '', negative_prompt: '', steps: 28, cfg: 6, scheduler: 'dpm_karras' }
+    },
+    {
+      id: 'sd15_mnn_cpu', name: 'SD 1.5 · MNN (CPU)', description: 'CPU 推理，可用 OpenCL 加速',
+      run_on_cpu: true, is_sdxl: false, is_anima: false, dit_kind: '', is_custom: false,
+      generation_size: 512, resolutions: [],
+      defaults: { prompt: '', negative_prompt: '', steps: 20, cfg: 7.5, scheduler: 'euler_a' }
+    },
+    {
+      id: 'z_image_turbo', name: 'Z-Image Turbo', description: 'DiT 后端，width / height 生效',
+      run_on_cpu: false, is_sdxl: false, is_anima: false, dit_kind: 'zimage', is_custom: false,
+      generation_size: 1024, resolutions: [],
+      defaults: { prompt: '', negative_prompt: '', steps: 8, cfg: 4, scheduler: 'euler' }
+    }
+  ];
+  S.status = { serving_model_id: null, state: 'idle', message: null, width: null, height: null };
+  S.model = S.models[0]; S.resolution = [512, 512];
+  S.status = { serving_model_id: S.model.id, state: 'running', message: null, width: 512, height: 512 };
+  syncModelDefaults(S.model); renderModels(); renderStatus(); renderSizeControls(); updateHudModel();
+}
+
+function mulberry32(a){
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function hashStr(s){
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+
+function buildTargetCanvas(prompt, w, h){
+  const seed = hashStr(prompt || 'local dream');
+  const rnd = mulberry32(seed);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d');
+  const hue = Math.floor(rnd() * 360);
+  const g = x.createLinearGradient(0, 0, w, h);
+  g.addColorStop(0, `hsl(${hue},62%,${22 + rnd() * 10}%)`);
+  g.addColorStop(.55, `hsl(${(hue + 40) % 360},58%,${34 + rnd() * 12}%)`);
+  g.addColorStop(1, `hsl(${(hue + 90) % 360},64%,${16 + rnd() * 12}%)`);
+  x.fillStyle = g; x.fillRect(0, 0, w, h);
+
+  for (let i = 0; i < 9; i++){
+    const cx = rnd() * w, cy = rnd() * h, r = (0.1 + rnd() * 0.42) * Math.min(w, h);
+    const rg = x.createRadialGradient(cx, cy, 0, cx, cy, r);
+    const hh = (hue + rnd() * 200) % 360;
+    rg.addColorStop(0, `hsla(${hh},80%,${45 + rnd() * 30}%,${.32 + rnd() * .3})`);
+    rg.addColorStop(1, `hsla(${hh},80%,50%,0)`);
+    x.fillStyle = rg; x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fill();
+  }
+  const v = x.createRadialGradient(w / 2, h / 2, Math.min(w, h) * .2, w / 2, h / 2, Math.max(w, h) * .78);
+  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.55)');
+  x.fillStyle = v; x.fillRect(0, 0, w, h);
+  return c;
+}
+
+function buildNoiseCanvas(w, h, seed){
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d');
+  const img = x.createImageData(w, h);
+  const rnd = mulberry32(seed);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4){
+    const n = (rnd() * 255) | 0;
+    d[i] = n; d[i + 1] = n; d[i + 2] = n; d[i + 3] = 255;
+  }
+  x.putImageData(img, 0, 0);
+  return c;
+}
+
+async function demoGenerate(body, w, h){
+  const ctrl = new AbortController(); S.abort = ctrl;
+  const total = body.steps || 20;
+  S.total = total;
+  const seed = body.seed != null ? body.seed : (Math.random() * 4294967295) >>> 0;
+  const target = buildTargetCanvas(body.prompt, w, h);
+  const noise = buildNoiseCanvas(w, h, seed);
+  const firstMs = 180 + Math.random() * 220;
+
+  S.drawW = w; S.drawH = h;
+  stage.width = w; stage.height = h;
+  $('#stageFrame').style.display = '';
+  $('#emptyStage').style.display = 'none';
+  syncMaskSize(w, h);
+  resetView();
+
+  const compose = k => {
+    const t = k / total;
+    const ease = 1 - Math.pow(1 - t, 2.2);
+    sctx.globalAlpha = 1; sctx.drawImage(noise, 0, 0);
+    sctx.globalAlpha = clamp(ease, 0, 1);
+    sctx.drawImage(target, 0, 0);
+    sctx.globalAlpha = 1;
+    if (t < 1){
+      const rnd = mulberry32(seed + k);
+      sctx.globalAlpha = (1 - t) * .5;
+      for (let i = 0; i < 3; i++){
+        sctx.fillStyle = `hsl(${(rnd() * 360) | 0},70%,60%)`;
+        sctx.beginPath();
+        sctx.arc(rnd() * w, rnd() * h, (rnd() * .06 + .01) * w, 0, Math.PI * 2);
+        sctx.fill();
+      }
+      sctx.globalAlpha = 1;
+    }
+  };
+
+  const t0 = performance.now();
+  try{
+    for (let k = 1; k <= total; k++){
+      if (ctrl.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+      compose(k);
+      S.step = k;
+      if (k === 1) S.firstStepMs = performance.now() - t0 + firstMs;
+      updateProgress();
+      const stride = body.show_diffusion_process ? Math.max(1, body.show_diffusion_stride || 1) : 1;
+      const delay = body.show_diffusion_process && (k % stride === 0) ? 95 : 32;
+      await new Promise(r => setTimeout(r, delay));
+    }
+    const genMs = firstMs + total * (55 + Math.random() * 40);
+    const final = {
+      type: 'complete', image: '', seed, width: w, height: h, channels: 3,
+      format: 'raw',
+      generation_time_ms: Math.round(genMs),
+      first_step_time_ms: Math.round(firstMs)
+    };
+    // 演示模式的 complete 事件没有 raw 图，直接复用已绘制的画布
+    finishGenerationDemo(final, body);
+  }catch(e){
+    if (e.name === 'AbortError') toast('已取消生成', 'warn');
+    else toast('演示生成出错：' + e.message, 'err');
+  }finally{
+    S.abort = null; setGenerating(false);
+  }
+}
+
+function finishGenerationDemo(final, body){
+  $('#stageProgBar').style.width = '100%';
+  $('#hudStep').textContent = `${final.width} × ${final.height}`;
+  $('#hudEta').style.display = 'none';
+  if (!S.seedLocked) $('#seedInput').value = randU32();
+  S.lastSeed = final.seed;
+  $('#resultMeta').innerHTML =
+    `<span>seed <b>${final.seed}</b></span>` +
+    `<span>尺寸 <b>${final.width}×${final.height}</b></span>` +
+    `<span>首步 <b>${fmtS(final.first_step_time_ms)}</b></span>` +
+    `<span>总耗时 <b>${fmtS(final.generation_time_ms)}</b></span>` +
+    `<span style="color:var(--violet)">演示合成</span>` +
+    `<span style="margin-left:auto"><a href="#" id="lnkDl2" style="color:var(--accent);text-decoration:none">下载 PNG</a></span>`;
+  const dataUrl = stage.toDataURL('image/png');
+  addHistory(dataUrl, { seed: final.seed, prompt: body.prompt, w: final.width, h: final.height });
+  stage.toBlob(b => autoSaveImage(b), 'image/png');
+  const dl = $('#lnkDl2');
+  if (dl) dl.onclick = e => {
+    e.preventDefault();
+    const a = document.createElement('a'); a.href = dataUrl;
+    a.download = `ld-demo-${final.seed}.png`; a.click();
+  };
+  toast('演示生成完成', 'ok');
+}
+
+/* ───────────── tokenize 计数 ───────────── */
+let tokenTimer = null;
+function scheduleTokenize(){
+  clearTimeout(tokenTimer);
+  const prompt = $('#prompt').value.trim();
+  if (!prompt){ $('#tokenChip').textContent = '— tokens'; $('#tokenChip').classList.remove('over'); return; }
+  tokenTimer = setTimeout(async () => {
+    if (CFG.mode === 'demo'){
+      const rough = Math.min(77, Math.ceil(prompt.split(/[\s,]+/).filter(Boolean).length * 1.7));
+      setTokenChip(rough, 77, -1); return;
+    }
+    try{
+      const res = await ctlFetch('/tokenize', { method: 'POST', body: { prompt }, timeout: 5000 });
+      setTokenChip(res.count, res.max_length, res.overflow_offset);
+    }catch{
+      // /tokenize 不在控制口时回落到生成口
+      try{
+        const res2 = await fetch(baseUrl(CFG.genPort) + '/tokenize', {
+          method: 'POST', headers: headers({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ prompt })
+        });
+        const j = await res2.json();
+        setTokenChip(j.count, j.max_length, j.overflow_offset);
+      }catch{ $('#tokenChip').textContent = '— tokens'; }
+    }
+  }, 420);
+}
+function setTokenChip(count, max, overflow){
+  const el = $('#tokenChip');
+  if (count == null){ el.textContent = '— tokens'; return; }
+  el.textContent = `${count} / ${max} tokens`;
+  el.classList.toggle('over', count > max || overflow >= 0);
+  el.title = (count > max || overflow >= 0) ? '超出 CLIP 77 token 上限，提示词会被截断' : '在 CLIP 77 token 上限内';
+}
+
+/* ───────────── 控件初始化 ───────────── */
+function setRangeFill(el){
+  const min = +el.min || 0, max = +el.max || 100, v = +el.value;
+  el.style.setProperty('--p', ((v - min) / (max - min) * 100) + '%');
+}
+function bindSwitch(el, onChange){
+  el.addEventListener('click', () => {
+    el.classList.toggle('on');
+    if (onChange) onChange(el.classList.contains('on'));
+  });
+}
+
+function initControls(){
+  $('#steps').addEventListener('input', e => { $('#stepsVal').textContent = e.target.value; setRangeFill(e.target); });
+  $('#cfg').addEventListener('input', e => { $('#cfgVal').textContent = (+e.target.value).toFixed(1); setRangeFill(e.target); });
+  $('#stride').addEventListener('input', e => {
+    $('#strideVal').textContent = e.target.value; setRangeFill(e.target);
+    CFG.stride = +e.target.value; saveCfg();
+  });
+  $('#denoise').addEventListener('input', e => { $('#denoiseVal').textContent = (+e.target.value).toFixed(2); setRangeFill(e.target); });
+  $('#brush').addEventListener('input', e => {
+    S.brush = +e.target.value; $('#brushVal').textContent = e.target.value; setRangeFill(e.target);
+  });
+  ['#steps', '#cfg', '#stride', '#denoise', '#brush'].forEach(s => setRangeFill($(s)));
+
+  $('#inW').addEventListener('input', updateSizeWarn);
+  $('#inH').addEventListener('input', updateSizeWarn);
+
+  bindSwitch($('#swProcess'), v => { CFG.showProcess = v; saveCfg(); });
+  bindSwitch($('#swOpencl'));
+
+  // tab 切换
+  $$('.tab').forEach(t => t.addEventListener('click', () => {
+    $$('.tab').forEach(x => x.classList.remove('on'));
+    t.classList.add('on');
+    S.genMode = t.dataset.tab;
+    const needImage = S.genMode !== 'txt2img';
+    $('#i2iPanel').classList.toggle('on', needImage);
+    $('#maskTools').style.display = S.genMode === 'inpaint' ? '' : 'none';
+    maskCanvas.classList.toggle('on', S.genMode === 'inpaint' && !!S.initImage);
+    if (needImage && !S.initImage && S.genMode === 'inpaint') toast('局部重绘需要先上传底图', 'warn');
+  }));
+
+  // 反向提示词折叠
+  $('#negToggle').addEventListener('click', () => {
+    $('#negToggle').classList.toggle('open');
+    $('#negWrap').classList.toggle('open');
+  });
+
+  $('#prompt').addEventListener('input', scheduleTokenize);
+  $('#btnGen').addEventListener('click', doGenerate);
+
+  // 种子
+  $('#btnDice').addEventListener('click', () => {
+    if (S.seedLocked){ toast('种子已锁定，先解锁', 'warn'); return; }
+    $('#seedInput').value = randU32();
+  });
+  $('#btnLockSeed').addEventListener('click', () => {
+    S.seedLocked = !S.seedLocked;
+    $('#btnLockSeed').classList.toggle('on', S.seedLocked);
+    toast(S.seedLocked ? '已锁定种子：每次生成都会用它' : '已解锁种子');
+  });
+
+  // 上传
+  $('#dropZone').addEventListener('click', () => $('#fileInput').click());
+  $('#fileInput').addEventListener('change', e => { if (e.target.files[0]) loadInitFile(e.target.files[0]); });
+  const dz = $('#dropZone');
+  ['dragover', 'dragenter'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('over'); }));
+  dz.addEventListener('drop', e => { if (e.dataTransfer.files[0]) loadInitFile(e.dataTransfer.files[0]); });
+
+  $('#btnClearMask').addEventListener('click', () => {
+    mctx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+    S.maskDirty = false;
+  });
+
+  // 顶栏
+  $('#btnTest').addEventListener('click', () => diagnose());
+  $('#btnTheme').addEventListener('click', () => {
+    const order = ['dark', 'oled', 'light'];
+    const cur = resolveTheme();
+    CFG.theme = order[(order.indexOf(cur) + 1) % order.length];
+    applyTheme(); saveCfg();
+    fillSettings();
+    toast('主题：' + THEME_NAME[CFG.theme]);
+  });
+  $('#btnSettings').addEventListener('click', openSettings);
+  $('#btnCloseSettings').addEventListener('click', closeSettings);
+  $('#btnCancelCfg').addEventListener('click', closeSettings);
+  $('#settingsModal').addEventListener('click', e => { if (e.target.id === 'settingsModal') closeSettings(); });
+
+  // 二级菜单切换
+  $$('.sn-item').forEach(btn => btn.addEventListener('click', () => {
+    $$('.sn-item').forEach(x => x.classList.toggle('active', x === btn));
+    const sec = btn.dataset.sec;
+    $$('.sec-pane').forEach(p => p.classList.toggle('active', p.dataset.pane === sec));
+    const label = btn.childNodes[0] ? btn.childNodes[0].textContent.trim() : '';
+    $('#secTitle').textContent = label;
+    $('.settings-body').scrollTop = 0;
+  }));
+
+  // 强调色快捷色板
+  const ACCENTS = ['#6d8cff', '#a06dff', '#2dd4bf', '#f472b6', '#f59e0b', '#3ddc97', '#ef4444', '#8b95a7'];
+  $('#accentSwatches').innerHTML = ACCENTS.map(c =>
+    `<button class="swatch" data-acc="${c}" style="background:${c}" title="${c}"></button>`).join('');
+  $$('#accentSwatches .swatch').forEach(b => b.addEventListener('click', () => {
+    $('#cfgAccent').value = b.dataset.acc;
+    $$('#accentSwatches .swatch').forEach(x => x.classList.toggle('on', x === b));
+  }));
+
+  bindSwitch($('#cfgShowProc'));
+  bindSwitch($('#cfgReduceMotion'));
+  bindSwitch($('#cfgAutoSave'));
+
+  // 自动保存目录
+  $('#btnPickDir').addEventListener('click', () => pickSaveDir());
+  $('#btnForgetDir').addEventListener('click', () => forgetSaveDir());
+
+  // 强调色：从图片取色 / 随机
+  $('#btnAccentFromImage').addEventListener('click', () => $('#fileAccent').click());
+  $('#fileAccent').addEventListener('change', async e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    try{
+      const hex = await extractAccentFromImage(URL.createObjectURL(f));
+      CFG.accent = hex;
+      applyTheme(); saveCfg(); fillSettings();
+      toast('已取主色 ' + hex, 'ok');
+    }catch(err){
+      toast('取色失败：' + err.message, 'err');
+    }
+    e.target.value = '';
+  });
+  $('#btnAccentAuto').addEventListener('click', () => {
+    CFG.accent = randomAccent();
+    applyTheme(); saveCfg(); fillSettings();
+  });
+
+  /* ── 画布缩放与平移 ── */
+  const vp = $('#stageViewport');
+  let panDrag = null;
+  let spaceHeld = false;
+
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Space' && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target.tagName || ''))) {
+      spaceHeld = true;
+      vp.classList.add('pannable');
+    }
+  });
+  document.addEventListener('keyup', e => {
+    if (e.code === 'Space'){ spaceHeld = false; applyZoom(); }
+  });
+
+  vp.addEventListener('wheel', e => {
+    if (!stage.width) return;
+    e.preventDefault();
+    zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * 0.0016));
+  }, { passive: false });
+
+  vp.addEventListener('pointerdown', e => {
+    if (!stage.width) return;
+    const masking = maskCanvas.classList.contains('on');
+    const wantPan = e.button === 1 || e.button === 2 || spaceHeld || (e.button === 0 && !masking);
+    if (!wantPan) return;
+    panDrag = { x: e.clientX, y: e.clientY, tx: Z.tx, ty: Z.ty };
+    try{ vp.setPointerCapture(e.pointerId); }catch{}
+    vp.classList.add('grabbing');
+    e.preventDefault();
+  });
+  vp.addEventListener('pointermove', e => {
+    if (!panDrag) return;
+    Z.tx = panDrag.tx + (e.clientX - panDrag.x);
+    Z.ty = panDrag.ty + (e.clientY - panDrag.y);
+    applyZoom();
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev =>
+    vp.addEventListener(ev, () => { panDrag = null; vp.classList.remove('grabbing'); }));
+  vp.addEventListener('contextmenu', e => { if (stage.width) e.preventDefault(); });
+  vp.addEventListener('dblclick', () => {
+    if (!stage.width) return;
+    if (Z.mode === 'fit'){ Z.mode = 'num'; Z.scale = 1; Z.tx = 0; Z.ty = 0; }
+    else resetView();
+    applyZoom();
+  });
+
+  $('#zoomSel').addEventListener('change', e => {
+    const v = e.target.value;
+    if (v === 'fit'){ resetView(); return; }
+    Z.mode = 'num';
+    Z.scale = parseFloat(v) || 1;
+    Z.tx = 0; Z.ty = 0;
+    applyZoom();
+  });
+  $('#zoomReset').addEventListener('click', resetView);
+  if (window.ResizeObserver) new ResizeObserver(() => applyZoom()).observe(vp);
+
+  $('#btnClearHistory').addEventListener('click', () => {
+    S.history = [];
+    renderHistory();
+    renderDataStats();
+    toast('历史已清空');
+  });
+
+  $('#btnRefreshConn').addEventListener('click', async () => {
+    await connect(true);
+    renderConnStatus();
+    renderAbout();
+  });
+
+  $$('#segMode button').forEach(b => b.addEventListener('click', () => {
+    $$('#segMode button').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+  }));
+
+  $('#btnSaveCfg').addEventListener('click', () => persistSettings(false));
+  $('#btnSaveTest').addEventListener('click', async () => {
+    await persistSettings(true);
+    closeSettings();
+    await diagnose();
+  });
+
+  $('#btnResetCfg').addEventListener('click', () => {
+    CFG = Object.assign({}, DEFAULT_CFG);
+    saveCfg(); applyTheme(); fillSettings(); applyCfgToPanel();
+    toast('已恢复默认配置');
+  });
+
+  $('#btnExportCfg').addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify(CFG, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'ldstudio-config.json';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+  $('#btnImportCfg').addEventListener('click', () => $('#fileCfg').click());
+  $('#fileCfg').addEventListener('change', e => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try{
+        CFG = Object.assign({}, DEFAULT_CFG, JSON.parse(r.result));
+        saveCfg(); applyTheme(); fillSettings(); applyCfgToPanel();
+        toast('配置已导入', 'ok');
+      }catch{ toast('JSON 解析失败', 'err'); }
+    };
+    r.readAsText(f);
+  });
+
+  // 快捷键
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter'){ e.preventDefault(); doGenerate(); }
+    if (e.key === 'Escape'){
+      if (S.generating && S.abort) S.abort.abort();
+      $('#settingsModal').classList.remove('on');
+    }
+  });
+
+  window.addEventListener('resize', () => { /* canvas 用 CSS 自适应，无需重绘 */ });
+}
+
+function fillSettings(){
+  $('#cfgHost').value = CFG.host || '';
+  $('#cfgCtlPort').value = CFG.ctlPort;
+  $('#cfgGenPort').value = CFG.genPort;
+  $('#cfgNeg').value = CFG.negative || '';
+  $('#cfgAccent').value = CFG.accent;
+  $('#cfgTheme').value = CFG.theme;
+  $('#cfgStride').value = CFG.stride || 1;
+  $('#cfgMaxHist').value = CFG.maxHistory || 30;
+  $('#cfgShowProc').classList.toggle('on', CFG.showProcess !== false);
+  $('#cfgReduceMotion').classList.toggle('on', !!CFG.reduceMotion);
+  $('#cfgAutoSave').classList.toggle('on', !!CFG.autoSave);
+  renderSaveState();
+  $$('#segMode button').forEach(b => b.classList.toggle('on', b.dataset.mode === CFG.mode));
+  $$('#accentSwatches .swatch').forEach(b =>
+    b.classList.toggle('on', (b.dataset.acc || '').toLowerCase() === (CFG.accent || '').toLowerCase()));
+  renderConnStatus();
+  renderAbout();
+  renderDataStats();
+}
+
+/** 配置分区里的真实占用统计 */
+function renderDataStats(){
+  const n = S.history.length;
+  let bytes = 0;
+  for (const h of S.history) bytes += Math.round((h.dataUrl || '').length * 3 / 4);
+  const mb = bytes / 1048576;
+  $('#statHist').textContent = n + ' 张' + (n ? ` · 约 ${mb < 1 ? (bytes / 1024).toFixed(0) + ' KB' : mb.toFixed(1) + ' MB'}` : '');
+  let cfgBytes = 0;
+  try{ cfgBytes = new Blob([localStorage.getItem(CFG_KEY) || '']).size; }catch{}
+  $('#statCfg').textContent = cfgBytes ? (cfgBytes / 1024).toFixed(1) + ' KB' : '—';
+}
+
+/** 把设置里的生成偏好同步到右侧参数面板（面板始终是运行时唯一事实来源） */
+function applyCfgToPanel(){
+  CFG.stride = clamp(parseInt(CFG.stride) || 1, 1, 20);
+  CFG.maxHistory = clamp(parseInt(CFG.maxHistory) || 30, 6, 200);
+  $('#stride').value = CFG.stride;
+  $('#strideVal').textContent = CFG.stride;
+  setRangeFill($('#stride'));
+  $('#swProcess').classList.toggle('on', CFG.showProcess !== false);
+  while (S.history.length > CFG.maxHistory) S.history.pop();
+  renderHistory();
+}
+
+/** 收集表单 → 写回 CFG。stayOpen 为 true 时只保存不关闭（供「保存并测试」用） */
+async function persistSettings(stayOpen){
+  CFG.host = $('#cfgHost').value.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  CFG.ctlPort = parseInt($('#cfgCtlPort').value) || 8808;
+  CFG.genPort = parseInt($('#cfgGenPort').value) || 8081;
+  CFG.negative = $('#cfgNeg').value.trim();
+  const acc = $('#cfgAccent').value.trim();
+  if (/^#[0-9a-f]{6}$/i.test(acc)) CFG.accent = acc;
+  CFG.theme = $('#cfgTheme').value;
+  CFG.showProcess = $('#cfgShowProc').classList.contains('on');
+  CFG.stride = clamp(parseInt($('#cfgStride').value) || 1, 1, 20);
+  CFG.maxHistory = clamp(parseInt($('#cfgMaxHist').value) || 30, 6, 200);
+  CFG.reduceMotion = $('#cfgReduceMotion').classList.contains('on');
+  CFG.autoSave = $('#cfgAutoSave').classList.contains('on');
+  const sel = $$('#segMode button').find(b => b.classList.contains('on'));
+  CFG.mode = sel ? sel.dataset.mode : 'proxy';
+
+  saveCfg();
+  applyTheme();
+  applyCfgToPanel();
+  fillSettings();
+  if (!$('#negPrompt').value) $('#negPrompt').value = CFG.negative;
+
+  if (!stayOpen){
+    closeSettings();
+    toast('设置已保存', 'ok');
+    await connect(true);
+  }
+}
+
+function renderConnStatus(){
+  const i = S.info;
+  const demo = CFG.mode === 'demo';
+  const cls = demo ? 'demo' : (i ? 'on' : 'off');
+  $('#setDot').className = 'dot ' + cls;
+  $('#setConnTitle').textContent = demo ? '演示模式' : (i ? '已连接' : '未连接');
+  $('#setConnSub').textContent = demo
+    ? '本地合成，不访问设备'
+    : (i ? `${i.device || '设备'} · ${CFG.host || '—'}:${CFG.ctlPort}` : (CFG.host ? '点「刷新」或「保存并测试连接」重试' : '尚未填写手机地址'));
+}
+
+function renderAbout(){
+  const i = S.info;
+  const stateMap = { idle: '空闲', starting: '载入中', running: '运行中', error: '错误' };
+  const rows = [
+    ['连接方式', CFG.mode === 'demo' ? '演示模式' : (CFG.mode === 'proxy' ? '同源代理' : '直连手机')],
+    ['连接状态', CFG.mode === 'demo' ? '本地合成' : (i ? '已连接' : '未连接')],
+    ['设备', i ? (i.device || '—') : '—'],
+    ['App 版本', i ? i.version : '—'],
+    ['协议版本', i && i.protocol ? 'protocol ' + i.protocol : '—'],
+    ['地址', (CFG.host || '—') + (CFG.mode === 'demo' ? '' : ` · ${CFG.ctlPort}/${CFG.genPort}`)],
+    ['可用模型', String(S.models.length || 0)],
+    ['当前挂载', (S.status && S.status.serving_model_id) || '—'],
+    ['后端状态', S.status ? (stateMap[S.status.state] || S.status.state) : '—']
+  ];
+  $('#aboutInfo').innerHTML = rows.map(([k, v]) =>
+    `<div class="about-row"><span>${escapeHtml(k)}</span><b>${escapeHtml(String(v))}</b></div>`).join('');
+  $('#snVersion').textContent = i ? `v${i.version}` : (CFG.mode === 'demo' ? 'DEMO' : '未连接');
+}
+
+function openSettings(){ fillSettings(); $('#settingsModal').classList.add('on'); }
+function closeSettings(){ $('#settingsModal').classList.remove('on'); }
+
+function loadInitFile(file){
+  if (!file.type.startsWith('image/')){ toast('请选择图片文件', 'warn'); return; }
+  const r = new FileReader();
+  r.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = img.width; c.height = img.height;
+      c.getContext('2d').drawImage(img, 0, 0);
+      const b64 = c.toDataURL('image/png').split(',')[1];
+      S.initImage = { b64, w: img.width, h: img.height };
+
+      // 直接显示底图
+      off.width = img.width; off.height = img.height;
+      offctx.drawImage(img, 0, 0);
+      stage.width = img.width; stage.height = img.height;
+      sctx.drawImage(img, 0, 0);
+      $('#stageFrame').style.display = '';
+      $('#emptyStage').style.display = 'none';
+      syncMaskSize(img.width, img.height);
+      if (S.genMode === 'inpaint') maskCanvas.classList.add('on');
+      resetView();
+
+      const [tw, th] = currentSize();
+      if (img.width !== tw || img.height !== th){
+        toast(`输入图 ${img.width}×${img.height} 与目标 ${tw}×${th} 不一致，后端会报 Img size mismatch`, 'warn');
+        $('#dropZone').innerHTML = `<b style="color:var(--warn)">尺寸不匹配：${img.width}×${img.height} → ${tw}×${th}</b>点击换图，或先裁剪`;
+      } else {
+        $('#dropZone').innerHTML = `<b style="color:var(--ok)">${img.width}×${img.height} 已就绪</b>点击可替换`;
+      }
+    };
+    img.src = r.result;
+  };
+  r.readAsDataURL(file);
+}
+
+function escapeHtml(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/* ───────────── 启动 ───────────── */
+(async function boot(){
+  applyTheme();
+  initControls();
+  fillSettings();
+  $('#negPrompt').value = CFG.negative;
+  $('#stride').value = CFG.stride; $('#strideVal').textContent = CFG.stride; setRangeFill($('#stride'));
+  $('#swProcess').classList.toggle('on', CFG.showProcess !== false);
+  renderSizeControls();
+  renderHistory();
+  updateHudModel();
+  applyZoom();
+  restoreSaveDir().then(renderSaveState);
+
+  if (CFG.mode === 'demo'){ enterDemo(); return; }
+  if (!CFG.host) await resolveHostFromServer();
+  if (!CFG.host){ setConn('off', '未配置地址'); renderOnboarding(); return; }
+  const ok = await connect(true);
+  if (ok){
+    // 不自动挂载模型：设备上可能存在加载失败的模型，自动挂载会误触发后端崩溃。
+    // 已运行的模型由 refreshStatus 自动同步。
+    renderStatus();
+  }
+})();
+</script>
+</body>
+</html>
