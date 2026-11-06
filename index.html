@@ -101,8 +101,8 @@ body::before{
   box-shadow:0 6px 18px -6px rgba(var(--accent-rgb),.85);
 }
 .logo svg{width:17px;height:17px}
-.brand-txt{display:flex;flex-direction:column;line-height:1.25;min-width:0}
-.brand-txt b{font-size:13.5px;letter-spacing:.2px;font-weight:650;white-space:nowrap}
+.brand-txt{display:flex;flex-direction:column;line-height:1.25;min-width:0;overflow:hidden}
+.brand-txt b{font-size:13.5px;letter-spacing:.2px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .brand-txt span{font-size:10.5px;color:var(--text-faint);letter-spacing:.5px;text-transform:uppercase}
 
 .pill{
@@ -139,7 +139,7 @@ body::before{
   grid-template-columns:var(--col-left,294px) 11px minmax(0,1fr) 11px var(--col-right,340px);
 }
 .col{
-  min-height:0;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);
+  min-height:0;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);
   box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden;
 }
 /* 列宽拖拽手柄 */
@@ -230,6 +230,7 @@ body.col-resizing .resizer{pointer-events:auto}
 #maskCanvas{position:absolute;inset:0;width:100%;height:100%;display:none;touch-action:none;cursor:crosshair}
 
 /* 缩放工具条 */
+.stage-wrap:not(.has-image) .stage-tools{display:none}
 .stage-tools{
   position:absolute;right:9px;bottom:9px;z-index:5;display:flex;align-items:center;gap:2px;
   padding:4px 5px;border-radius:10px;background:rgba(8,9,13,.55);
@@ -280,7 +281,23 @@ html[data-theme="light"] .sa-btn:hover:not(:disabled){background:#fff}
   animation:popIn .18s var(--ease);
 }
 .pop.on{display:flex}
-.pop-title{font-size:11px;font-weight:650;color:var(--text);display:flex;justify-content:space-between;align-items:center}
+.pop-title{font-size:11px;font-weight:650;color:var(--text);display:flex;justify-content:space-between;align-items:center;gap:8px}
+.pop-x{
+  width:20px;height:20px;flex:0 0 auto;border:0;border-radius:5px;background:transparent;
+  color:var(--text-faint);font-size:12px;line-height:1;cursor:pointer;transition:.15s;
+  display:grid;place-items:center;padding:0;font-family:inherit;
+}
+.pop-x:hover{background:var(--panel-3);color:var(--text)}
+.pop-tip{
+  font-size:10px;line-height:1.55;color:var(--text-dim);background:var(--panel-2);
+  border:1px solid var(--line);border-radius:8px;padding:6px 8px;
+}
+.pop-tip.warn{color:var(--warn);border-color:rgba(255,184,77,.35);background:rgba(255,184,77,.08)}
+.pop-scan{
+  height:24px;border:0;background:transparent;color:var(--text-faint);font-size:10.5px;
+  font-family:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:2px;padding:0;
+}
+.pop-scan:hover{color:var(--accent)}
 .pop-label{font-size:10.5px;color:var(--text-faint);margin-bottom:5px;display:block}
 .pop .chips{gap:4px}
 .pop .chip{height:24px;font-size:10.5px;padding:0 6px;flex:1;justify-content:center}
@@ -628,15 +645,46 @@ html.no-anim *{transition:none!important;animation:none!important}
 .spin{animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
-@media (max-width:1180px){
-  .studio{grid-template-columns:250px minmax(0,1fr) 306px}
-}
-@media (max-width:960px){
+/* ══ 响应式：只保留两态 —— 宽屏三栏 / 窄屏单列 ══ */
+@media (max-width:1199px){
   body{overflow:auto}
-  .app{height:auto;min-height:100vh}
-  .studio{grid-template-columns:1fr}
-  .col{max-height:none}
-  .stage-wrap{min-height:320px}
+  .app{height:auto;min-height:100vh;padding:10px;gap:9px}
+  .studio{display:flex;flex-direction:column;gap:9px;flex:none}
+  .resizer{display:none}
+  .col{flex:none;max-height:none;min-width:0}
+  .col-scroll{overflow:visible;flex:none;padding:12px}
+  /* 竖屏优先看画布：画布 → 参数 → 模型 */
+  .col-center{order:1}
+  .col-right{order:2}
+  .col-left{order:3}
+  .stage-wrap{flex:none;height:min(58vh,440px);min-height:280px;margin:10px 10px 0}
+  .prompt-zone{padding:9px 11px 11px}
+  .topbar{padding:8px 10px;gap:9px}
+  .brand-txt span{display:none}
+  .stage-tools{opacity:1}
+}
+@media (max-width:620px){
+  .app{padding:7px;gap:7px}
+  .topbar{gap:7px}
+  .brand-txt b{font-size:12px;letter-spacing:0}
+  .logo{width:26px;height:26px;border-radius:8px}
+  .logo svg{width:15px;height:15px}
+  #connPill{max-width:132px;height:26px;font-size:10.5px;padding:0 9px}
+  .topbar .btn{height:28px;padding:0;width:28px;font-size:0;gap:0}
+  .topbar .btn svg{width:15px;height:15px}
+  .hud{flex-wrap:wrap;gap:5px;left:8px;top:8px;right:8px}
+  .hud-chip{max-width:46vw;overflow:hidden;text-overflow:ellipsis}
+  #connText{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #prompt{min-height:96px}
+  .sa-btn{height:24px;padding:0 7px;font-size:0;gap:0}
+  .sa-btn svg{width:14px;height:14px}
+  .stage-actions{gap:4px}
+  .pop{width:calc(100vw - 34px);max-width:280px;right:6px;top:38px}
+  .stage-wrap{height:min(52vh,360px);min-height:240px}
+  .settings-card{height:min(84vh,620px)}
+  .prompt-card{height:min(82vh,600px)}
+  .prompt-panes{grid-template-columns:1fr;gap:9px;padding:11px}
+  .result-meta{gap:8px;font-size:10px}
 }
 </style>
 </head>
@@ -675,7 +723,7 @@ html.no-anim *{transition:none!important;animation:none!important}
 
   <main class="studio">
     <!-- ─── 左栏 ─── -->
-    <aside class="col">
+    <aside class="col col-left">
       <div class="col-scroll">
         <section>
           <h4 class="sec-title">设备 <span class="hint" id="devVer"></span></h4>
@@ -698,7 +746,7 @@ html.no-anim *{transition:none!important;animation:none!important}
     <div class="resizer" data-side="left" title="拖动调整左栏宽度"></div>
 
     <!-- ─── 中栏 ─── -->
-    <section class="col">
+    <section class="col col-center">
       <div class="stage-wrap" id="stageWrap">
         <div class="hud">
           <span class="hud-chip" id="hudModel"></span>
@@ -718,7 +766,10 @@ html.no-anim *{transition:none!important;animation:none!important}
         </div>
 
         <div class="pop" id="upPop">
-          <div class="pop-title">图像超分 <span id="upDims" style="font-weight:400;color:var(--text-faint)"></span></div>
+          <div class="pop-title">
+            <span>图像超分 <span id="upDims" style="font-weight:400;color:var(--text-faint)"></span></span>
+            <button class="pop-x" id="btnCloseUp" title="关闭">✕</button>
+          </div>
           <div>
             <label class="pop-label">类型</label>
             <div class="chips" id="upKindChips"></div>
@@ -727,8 +778,10 @@ html.no-anim *{transition:none!important;animation:none!important}
             <label class="pop-label">放大倍率</label>
             <div class="chips" id="upScaleChips"></div>
           </div>
-          <button class="pop-run" id="btnRunUpscale">开始超分</button>
           <div class="pop-note" id="upNote"></div>
+          <div class="pop-tip" id="upTip">放大器需先在 Local Dream 里下载（模型页 → 放大器），本页无法代为安装。</div>
+          <button class="pop-run" id="btnRunUpscale">开始超分</button>
+          <button class="pop-scan" id="btnCheckUp">重新检查放大器</button>
         </div>
         <div class="empty-stage" id="emptyStage">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg>
@@ -809,8 +862,10 @@ html.no-anim *{transition:none!important;animation:none!important}
       </div>
     </section>
 
+    <div class="resizer" data-side="right" title="拖动调整右栏宽度"></div>
+
     <!-- ─── 右栏 ─── -->
-    <aside class="col">
+    <aside class="col col-right">
       <div class="col-scroll">
         <section>
           <h4 class="sec-title">采样</h4>
@@ -1070,6 +1125,14 @@ html.no-anim *{transition:none!important;animation:none!important}
             <div class="about-row"><span>配置占用</span><b id="statCfg">—</b></div>
             <button class="btn danger" id="btnClearHistory" style="margin-top:9px">清空历史作品</button>
             <div class="shelp">只清当前会话内存里的缩略图，不影响设备与磁盘上的任何文件。</div>
+          </div>
+          <div class="sgroup">
+            <label class="field-label">诊断日志<span class="info" data-tip="记录每一次请求的状态码与耗时、连接与生成事件、以及页面报错。遇到问题时导出这份文件即可定位。">i</span></label>
+            <div class="about-row"><span>已记录</span><b id="logCount">0 条</b></div>
+            <div style="display:flex;gap:8px;margin-top:9px">
+              <button class="btn" id="btnExportLog" style="flex:1">导出日志</button>
+              <button class="btn ghost" id="btnClearLog">清空</button>
+            </div>
           </div>
         </div>
 
@@ -1506,6 +1569,78 @@ function toast(msg, type){
 const fmtS = ms => ms >= 1000 ? (ms / 1000).toFixed(2) + ' s' : Math.round(ms) + ' ms';
 const fmtN = n => (n || 0).toLocaleString('zh-CN');
 
+/* ═════════════ 诊断日志 ═════════════ */
+const LOG = [];
+const LOG_MAX = 800;
+
+function log(level, msg, data){
+  const e = { t: new Date().toISOString().slice(11, 23), level, msg };
+  if (data !== undefined && data !== null) e.data = data;
+  LOG.push(e);
+  if (LOG.length > LOG_MAX) LOG.shift();
+  const badge = document.getElementById('logCount');
+  if (badge) badge.textContent = LOG.length + ' 条';
+}
+
+/** 给所有 fetch 挂上记录，最小侵入，能抓到真实的状态码与网络错误 */
+function installFetchLog(){
+  if (window.__ldFetchPatched) return;
+  window.__ldFetchPatched = true;
+  const orig = window.fetch.bind(window);
+  window.fetch = async function(input, init){
+    const url = typeof input === 'string' ? input : (input && input.url) || '';
+    const method = (init && init.method) || 'GET';
+    const short = String(url).replace(location.origin, '').slice(0, 140);
+    const t0 = performance.now();
+    try{
+      const res = await orig(input, init);
+      log(res.ok ? 'info' : 'warn', `${method} ${short} → ${res.status}`, {
+        ms: Math.round(performance.now() - t0),
+        type: res.headers.get('content-type') || ''
+      });
+      return res;
+    }catch(err){
+      log('error', `${method} ${short} 失败：${err.name} ${err.message}`, {
+        ms: Math.round(performance.now() - t0),
+        mode: CFG.mode,
+        host: CFG.host
+      });
+      throw err;
+    }
+  };
+}
+
+function exportLog(){
+  const pad = s => String(s).padEnd(5);
+  const lines = LOG.map(e =>
+    `${e.t}  ${pad(e.level.toUpperCase())}  ${e.msg}` + (e.data ? '  ' + JSON.stringify(e.data) : '')
+  );
+  const head = [
+    'Localdream Web UI Studio — 诊断日志',
+    '导出时间  ' + new Date().toISOString(),
+    '页面地址  ' + location.href,
+    '连接方式  ' + CFG.mode + '    目标 ' + (CFG.host || '-') + ' : ' + CFG.ctlPort + ' / ' + CFG.genPort,
+    '设备      ' + (S.info ? `${S.info.device} / v${S.info.version} / protocol ${S.info.protocol}` : '未连接'),
+    '模型      ' + (S.model ? S.model.id : '-') + '    画布 ' + (S.drawW || 0) + '×' + (S.drawH || 0),
+    '浏览器    ' + navigator.userAgent,
+    '记录条数  ' + LOG.length,
+    '─'.repeat(58)
+  ].join('\n');
+  const blob = new Blob([head + '\n' + lines.join('\n') + '\n'], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `ldstudio-log-${Date.now()}.txt`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  toast('日志已导出', 'ok');
+}
+
+window.addEventListener('error', e => log('error', 'JS 错误：' + (e.message || ''), { at: `${e.filename}:${e.lineno}` }));
+window.addEventListener('unhandledrejection', e => {
+  const r = e.reason;
+  log('error', '未处理的 Promise 拒绝：' + ((r && r.message) || r));
+});
+
 /* ═════════════ 网络层 ═════════════ */
 function baseUrl(port){
   if (CFG.mode === 'proxy') return `/p/${port}`;
@@ -1551,10 +1686,17 @@ async function resolveHostFromServer(){
   if (CFG.mode !== 'proxy') return false;
   try{
     const r = await fetch('/api/ping');
-    if (!r.ok) return false;
+    if (!r.ok) throw new Error('HTTP ' + r.status);
     const j = await r.json();
     if (j && j.default_host){ CFG.host = j.default_host; saveCfg(); fillSettings(); return true; }
-  }catch{}
+  }catch(e){
+    // 页面不是由 serve.py 提供时，/p/8808、/p/8081 都不存在，后续请求会表现为 Failed to fetch
+    log('warn', '无法访问 /api/ping，页面可能不是由 serve.py 提供', { href: location.href, err: String(e && e.message) });
+    if (!window.__pingWarned){
+      window.__pingWarned = true;
+      setTimeout(() => toast('未检测到本地服务。请用 python serve.py 启动后访问 http://127.0.0.1:8777，而不是直接打开 html 文件', 'warn'), 800);
+    }
+  }
   return false;
 }
 
@@ -1630,6 +1772,7 @@ async function connect(silent){
     if (stale()) return false;
     if (!info || info.app !== 'localdream') throw new Error('该地址不是 Local Dream 受控模式');
     S.info = info;
+    log('info', '已连接设备', { device: info.device, version: info.version, protocol: info.protocol });
     setConn('on', `已连接 · v${info.version}`);
     renderDevice();
     await loadModels();
@@ -1638,6 +1781,7 @@ async function connect(silent){
   }catch(e){
     if (stale()) return false;
     const msg = (e && e.name === 'AbortError') ? '连接超时，设备无响应' : (e.message || String(e));
+    log('error', '连接失败：' + msg, { host: CFG.host, mode: CFG.mode });
     setConn('off', '连接失败');
     if (!silent) toast('连接失败：' + msg, 'err');
     $('#devInfo').innerHTML = `<div class="warn-line">${escapeHtml(msg)}<br>请确认 App 内已「进入受控模式」，且地址端口可达。</div>`;
@@ -1912,6 +2056,7 @@ async function selectModel(id){
     renderStatus(); return;
   }
   const [w, h] = currentSize();
+  log('info', '载入模型', { id: m.id, size: `${w}x${h}` });
   try{
     setConn('wait', '载入模型…');
     const r = await ctlFetch('/select', { method: 'POST', body: { model_id: m.id, width: w, height: h } });
@@ -2056,6 +2201,7 @@ function paintToStage(imgData){
   $('#emptyStage').style.display = 'none';
   $('#btnToI2I').disabled = false;
   $('#btnUpscale').disabled = false;
+  $('#stageWrap').classList.add('has-image');
   if ($('#upPop').classList.contains('on')) renderUpChips();
   // 生成过程中不要重置蒙版（尺寸变化时 syncMaskSize 会清空）
   if (!S.generating) syncMaskSize(w, h);
@@ -2266,6 +2412,7 @@ async function doGenerate(){
   const [w, h] = currentSize();
 
   S.step = 0; S.total = body.steps || 20; S.tStart = performance.now(); S.firstStepMs = 0;
+  log('info', '开始生成', { model: S.model.id, size: `${w}x${h}`, steps: body.steps, cfg: body.cfg, seed: body.seed != null ? body.seed : 'random' });
   setGenerating(true);
   $('#hudStep').style.display = '';
   $('#hudStep').textContent = `0 / ${S.total}`;
@@ -2329,6 +2476,7 @@ async function doGenerate(){
     if (!final) throw new Error('没有收到 complete 事件（后端可能中途被回收，重试一次）');
     finishGeneration(final, body);
   }catch(e){
+    log(e.name === 'AbortError' ? 'warn' : 'error', '生成中断：' + (e.message || e.name), { model: S.model && S.model.id });
     if (e.name === 'AbortError'){ toast('已取消生成', 'warn'); }
     else if (e instanceof TypeError){ toast('连不上生成口 8081：模型后端可能未启动，重新点一次模型卡片再试', 'err'); }
     else toast('生成失败：' + e.message, 'err');
@@ -2404,6 +2552,7 @@ function finishGeneration(final, body){
     doGenerate();
   };
 
+  log('info', '生成完成', { seed, size: `${final.width}x${final.height}`, ms: final.generation_time_ms, first: final.first_step_time_ms });
   toast('生成完成 · ' + fmtS(final.generation_time_ms || 0), 'ok');
 }
 
@@ -2639,20 +2788,9 @@ function scheduleTokenize(){
       const rough = Math.min(77, Math.ceil(prompt.split(/[\s,]+/).filter(Boolean).length * 1.7));
       setTokenChip(rough, 77, -1); return;
     }
-    try{
-      const res = await ctlFetch('/tokenize', { method: 'POST', body: { prompt }, timeout: 5000 });
-      setTokenChip(res.count, res.max_length, res.overflow_offset);
-    }catch{
-      // /tokenize 不在控制口时回落到生成口
-      try{
-        const res2 = await fetch(baseUrl(CFG.genPort) + '/tokenize', {
-          method: 'POST', headers: headers({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ prompt })
-        });
-        const j = await res2.json();
-        setTokenChip(j.count, j.max_length, j.overflow_offset);
-      }catch{ $('#tokenChip').textContent = '— tokens'; }
-    }
+    const r = await tokenizeText(prompt);
+    if (r) setTokenChip(r.count, r.max, r.count > r.max ? r.count - r.max : -1);
+    else $('#tokenChip').textContent = '— tokens';
   }, 420);
 }
 function setTokenChip(count, max, overflow){
@@ -2692,7 +2830,7 @@ function initResizers(){
     const side = hd.dataset.side;
     const key = side === 'left' ? 'colLeft' : 'colRight';
     hd.addEventListener('pointerdown', e => {
-      if (window.matchMedia('(max-width:960px)').matches) return;
+      if (window.matchMedia('(max-width:1199px)').matches) return;
       e.preventDefault();
       const startX = e.clientX;
       const startW = side === 'left' ? CFG.colLeft : CFG.colRight;
@@ -2784,17 +2922,19 @@ async function tokenizeText(text){
     const rough = Math.min(77, Math.ceil(text.split(/[\s,]+/).filter(Boolean).length * 1.7));
     return { count: rough, max: 77 };
   }
+  // /tokenize 在生成口 8081 上，先打它；控制口只是兜底
   try{
-    const r = await ctlFetch('/tokenize', { method: 'POST', body: { prompt: text }, timeout: 5000 });
-    return { count: r.count, max: r.max_length };
+    const res = await fetch(baseUrl(CFG.genPort) + '/tokenize', {
+      method: 'POST', headers: headers({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ prompt: text })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const j = await res.json();
+    return { count: j.count, max: j.max_length };
   }catch{
     try{
-      const res = await fetch(baseUrl(CFG.genPort) + '/tokenize', {
-        method: 'POST', headers: headers({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ prompt: text })
-      });
-      const j = await res.json();
-      return { count: j.count, max: j.max_length };
+      const r = await ctlFetch('/tokenize', { method: 'POST', body: { prompt: text }, timeout: 5000 });
+      return { count: r.count, max: r.max_length };
     }catch{ return null; }
   }
 }
@@ -2903,15 +3043,31 @@ function renderUpChips(){
   if (dims){
     dims.textContent = stage.width ? `${stage.width}×${stage.height} → ${stage.width * UP.scale}×${stage.height * UP.scale}` : '';
   }
+  const up = pickUpscaler(UP.kind);
   const note = $('#upNote');
   if (note){
-    const up = pickUpscaler(UP.kind);
     note.textContent = up
-      ? (UP.scale === 4 ? '放大器原生 ×4。' : `放大器原生 ×4，${UP.scale}× 由浏览器高质量降采样得到。`)
-      : '设备上没有可用的放大器，先在 App 内下载一个。';
+      ? (UP.scale === 4 ? '放大器原生 ×4。' : `放大器原生 ×4，${UP.scale}× 由浏览器降采样得到。`)
+      : '';
+  }
+  const tip = $('#upTip');
+  if (tip){
+    if (!(S.upscalers || []).length){
+      tip.style.display = '';
+      tip.className = 'pop-tip warn';
+      tip.textContent = CFG.mode === 'demo'
+        ? '演示模式没有真实设备，无法执行超分。'
+        : '未检测到任何放大器。请先在 Local Dream 内下载（模型页 → 放大器），再点下方「重新检查」。';
+    } else if (!up){
+      tip.style.display = '';
+      tip.className = 'pop-tip warn';
+      tip.textContent = `设备上没有「${UP.kind === 'anime' ? '动漫' : '写实'}」类放大器，换个类型或先去 App 内下载。`;
+    } else {
+      tip.style.display = 'none';
+    }
   }
   const run = $('#btnRunUpscale');
-  if (run) run.disabled = !pickUpscaler(UP.kind) || UP.running;
+  if (run) run.disabled = !up || UP.running || CFG.mode === 'demo';
 }
 
 function setUpscaleBusy(on){
@@ -2939,16 +3095,36 @@ async function runUpscale(){
 
   UP.running = true;
   setUpscaleBusy(true);
+  $('#upPop').classList.remove('on');
+  log('info', '超分开始', { w, h, kind: UP.kind, scale: UP.scale, upscaler: up.id, bytes: rgb.length });
   const t0 = performance.now();
   try{
-    const res = await fetch(baseUrl(CFG.genPort) + '/upscale', {
+    /* 直连模式下 X-Image-* 属于自定义头，会触发跨域预检；
+       而设备只允许 Content-Type / Authorization，预检必被拒 → 浏览器报 Failed to fetch。
+       此时若页面本身由 serve.py 提供，就自动改走同源代理。 */
+    let upBase = baseUrl(CFG.genPort);
+    const upHeaders = {
+      'Content-Type': 'application/octet-stream',
+      'X-Image-Width': String(w),
+      'X-Image-Height': String(h),
+      'X-Upscaler-Path': up.path
+    };
+    if (CFG.mode === 'direct'){
+      let viaProxy = false;
+      try{ viaProxy = (await fetch('/api/ping')).ok; }catch{}
+      if (!viaProxy){
+        throw new Error('直连模式无法发送自定义请求头（跨域预检会被设备拒绝）。请把连接方式改成「同源代理」后重试。');
+      }
+      upBase = `/p/${CFG.genPort}`;
+      upHeaders['X-LD-Host'] = CFG.host;
+      log('warn', '直连模式下超分自动改走同源代理', { host: CFG.host });
+    } else {
+      Object.assign(upHeaders, headers({}));
+    }
+
+    const res = await fetch(upBase + '/upscale', {
       method: 'POST',
-      headers: headers({
-        'Content-Type': 'application/octet-stream',
-        'X-Image-Width': String(w),
-        'X-Image-Height': String(h),
-        'X-Upscaler-Path': up.path
-      }),
+      headers: upHeaders,
       body: rgb
     });
     if (!res.ok){
@@ -2999,8 +3175,13 @@ async function runUpscale(){
       a.click();
     };
     toast(`超分完成 ${tw}×${th} · ${fmtS(dt)}`, 'ok');
+    log('info', '超分完成', { from: `${w}x${h}`, to: `${tw}x${th}`, ms: Math.round(dt) });
   }catch(e){
-    toast('超分失败：' + (e.message || e.name), 'err');
+    const msg = (e && e.name === 'TypeError')
+      ? '无法连接生成口 8081。可能是页面不是由 serve.py 提供（会表现为跨域失败），或设备尚未选定模型。'
+      : (e.message || e.name);
+    log('error', '超分失败：' + msg, { kind: UP.kind, scale: UP.scale, size: `${w}x${h}` });
+    toast('超分失败：' + msg, 'err');
   }finally{
     UP.running = false;
     setUpscaleBusy(false);
@@ -3260,17 +3441,32 @@ function initControls(){
 
   /* ── 画布右上角：一键图生图 / 超分 ── */
   $('#btnToI2I').addEventListener('click', canvasToInitImage);
+  const upPop = $('#upPop');
   $('#btnUpscale').addEventListener('click', e => {
     e.stopPropagation();
-    const pop = $('#upPop');
-    if (pop.classList.toggle('on')) renderUpChips();
+    if (upPop.classList.toggle('on')) renderUpChips();
   });
+  // 面板内部点击不冒泡到 document：芯片点击会重绘 DOM，冒泡上去时 target 已脱离文档，
+  // 会被误判为「点在面板外面」而把面板关掉。
+  upPop.addEventListener('click', e => e.stopPropagation());
+  $('#btnCloseUp').addEventListener('click', () => upPop.classList.remove('on'));
   $('#btnRunUpscale').addEventListener('click', runUpscale);
-  document.addEventListener('click', e => {
-    const pop = $('#upPop');
-    if (!pop.classList.contains('on')) return;
-    if (pop.contains(e.target) || e.target.closest('#btnUpscale')) return;
-    pop.classList.remove('on');
+  $('#btnCheckUp').addEventListener('click', async () => {
+    if (CFG.mode === 'demo'){ toast('演示模式没有真实设备，无法检测', 'warn'); return; }
+    await loadModels();
+    renderUpChips();
+    const n = (S.upscalers || []).length;
+    toast(n ? `检测到 ${n} 个放大器` : '未检测到放大器，请先在 App 内下载', n ? 'ok' : 'warn');
+    log('info', '重新检查放大器', { count: n });
+  });
+  document.addEventListener('click', () => { if (upPop.classList.contains('on')) upPop.classList.remove('on'); });
+
+  /* ── 诊断日志 ── */
+  $('#btnExportLog').addEventListener('click', exportLog);
+  $('#btnClearLog').addEventListener('click', () => {
+    LOG.length = 0;
+    const el = $('#logCount'); if (el) el.textContent = '0 条';
+    toast('日志已清空');
   });
 
   /* ── 提示词编辑器 ── */
@@ -3452,8 +3648,10 @@ function escapeHtml(s){
 
 /* ───────────── 启动 ───────────── */
 (async function boot(){
+  installFetchLog();
   applyLayout();
   applyTheme();
+  log('info', '页面启动', { url: location.href, mode: CFG.mode, ua: navigator.userAgent.slice(0, 80) });
   initControls();
   fillSettings();
   $('#negPrompt').value = CFG.negative;
