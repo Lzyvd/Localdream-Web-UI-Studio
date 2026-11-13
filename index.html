@@ -114,7 +114,6 @@ body::before{
 .dot.on{background:var(--ok);box-shadow:0 0 0 3px rgba(61,220,151,.16)}
 .dot.wait{background:var(--warn);box-shadow:0 0 0 3px rgba(255,184,77,.16);animation:pulse 1.3s infinite}
 .dot.off{background:var(--err);box-shadow:0 0 0 3px rgba(255,107,107,.16)}
-.dot.demo{background:var(--violet);box-shadow:0 0 0 3px rgba(160,109,255,.18)}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 
 .spacer{flex:1}
@@ -504,6 +503,7 @@ select:focus,input[type=text]:focus,input[type=number]:focus{border-color:rgba(v
 .switch.on{background:rgba(var(--accent-rgb),.28);border-color:rgba(var(--accent-rgb),.65)}
 .switch.on::after{transform:translateX(15px);background:var(--accent);box-shadow:0 0 8px rgba(var(--accent-rgb),.9)}
 
+.warn-line.danger{color:var(--err);background:rgba(255,107,107,.08);border-color:rgba(255,107,107,.45)}
 .warn-line{
   font-size:10.5px;line-height:1.5;color:var(--warn);background:rgba(255,184,77,.08);
   border:1px solid rgba(255,184,77,.26);border-radius:8px;padding:6px 8px;
@@ -891,7 +891,7 @@ html.no-anim *{transition:none!important;animation:none!important}
             <span class="chip-mini" id="tokenChip">— tokens</span>
             <button class="neg-toggle" id="negToggle">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>
-              反向提示词
+              负面提示词
             </button>
             <div style="flex:1"></div>
             <button class="mini-btn" id="btnExpandPrompt" title="展开提示词编辑器">
@@ -900,7 +900,7 @@ html.no-anim *{transition:none!important;animation:none!important}
           </div>
           <div id="negWrap">
             <div style="padding:0 11px 9px">
-              <textarea id="negPrompt" rows="2" placeholder="negative prompt" style="font-size:11.5px;background:var(--panel-3);border-radius:8px;padding:8px 9px"></textarea>
+              <textarea id="negPrompt" rows="2" placeholder="negative prompt（负面提示词）" style="font-size:11.5px;background:var(--panel-3);border-radius:8px;padding:8px 9px"></textarea>
             </div>
           </div>
         </div>
@@ -937,6 +937,11 @@ html.no-anim *{transition:none!important;animation:none!important}
           <div class="param">
             <div class="param-head"><span>CFG</span><span class="val" id="cfgVal">7.5</span></div>
             <input type="range" id="cfg" min="0" max="20" step="0.5" value="7.5">
+            <div class="warn-line danger" id="cfgWarn" style="display:none;margin-top:6px"></div>
+          </div>
+          <div class="param">
+            <div class="param-head"><span>批次 count</span><span class="hint">1 – 20</span></div>
+            <input type="number" id="batch" min="1" max="20" step="1" value="1">
           </div>
           <div class="param">
             <div class="param-head"><span>采样器</span></div>
@@ -979,6 +984,8 @@ html.no-anim *{transition:none!important;animation:none!important}
             PNG / JPG，需与目标尺寸一致
           </div>
           <input type="file" id="fileInput" accept="image/*" style="display:none">
+          <button class="btn" id="btnUsePreview" style="width:100%;margin-top:7px">使用当前预览图</button>
+          <div class="warn-line" id="initWarn" style="display:none;margin-top:6px"></div>
           <div class="param" style="margin-top:9px">
             <div class="param-head"><span>去噪强度 denoise</span><span class="val" id="denoiseVal">0.60</span></div>
             <input type="range" id="denoise" min="0" max="1" step="0.01" value="0.6">
@@ -996,7 +1003,7 @@ html.no-anim *{transition:none!important;animation:none!important}
         <section>
           <h4 class="sec-title">高级</h4>
           <div class="switch-row">
-            <div class="lab">过程预览 <small>show_diffusion_process</small></div>
+            <div class="lab">过程预览<span class="info" data-tip="需先在受控设备上开启对应设置，生成时才会推送中间帧；纯 CLIP 后端可能不支持。">i</span><small>show_diffusion_process</small></div>
             <div class="switch on" id="swProcess"></div>
           </div>
           <div class="param" style="margin-top:6px">
@@ -1015,10 +1022,12 @@ html.no-anim *{transition:none!important;animation:none!important}
         </section>
 
         <section>
-          <h4 class="sec-title">元数据<span class="info" data-tip="导入 .json 或 .txt 元数据文件，自动回填提示词、反向提示词、种子、步数、CFG、采样器与尺寸。也可以把文件直接拖到页面上。">i</span></h4>
-          <button class="btn" id="btnImportMeta" style="width:100%">导入元数据</button>
+          <h4 class="sec-title">元数据<span class="info" data-tip="导入 .json 或 .txt 元数据文件，自动回填提示词、负面提示词、种子、步数、CFG、采样器与尺寸。也可以把文件直接拖到页面上。">i</span></h4>
+          <button class="btn" id="btnImportMeta" style="width:100%">导入元数据文件</button>
           <div class="meta-drop" id="metaDrop">拖入 .json / .txt 文件</div>
           <input type="file" id="fileMeta" accept=".json,.txt,application/json,text/plain" style="display:none">
+          <textarea id="metaInput" rows="3" placeholder="粘贴元数据后点「应用」，支持 Local Dream 原生参数与 JSON / key: value" style="margin-top:9px"></textarea>
+          <button class="btn" id="btnApplyMeta" style="width:100%;margin-top:7px">应用元数据</button>
         </section>
       </div>
     </aside>
@@ -1065,7 +1074,6 @@ html.no-anim *{transition:none!important;animation:none!important}
             <div class="seg" id="segMode">
               <button data-mode="proxy" class="on">同源代理</button>
               <button data-mode="direct">直连手机</button>
-              <button data-mode="demo">演示模式</button>
             </div>
           </div>
 
@@ -1097,7 +1105,7 @@ html.no-anim *{transition:none!important;animation:none!important}
         <!-- ② 生成 -->
         <div class="sec-pane" data-pane="gen">
           <div class="sgroup">
-            <label class="field-label">默认反向提示词<span class="info" data-tip="新建会话时自动填入。提示词面板里已经手动改过的内容不会被覆盖。">i</span></label>
+            <label class="field-label">默认负面提示词<span class="info" data-tip="新建会话时自动填入。提示词面板里已经手动改过的内容不会被覆盖。">i</span></label>
             <textarea id="cfgNeg" rows="3" placeholder="lowres, bad anatomy, ..."></textarea>
           </div>
           <div class="sgroup">
@@ -1179,16 +1187,17 @@ html.no-anim *{transition:none!important;animation:none!important}
 
           <div class="sgroup">
             <div class="switch-row">
-              <div class="lab">同时保存提示词与参数<span class="info" data-tip="在图片旁边额外写一个同名文本文件，记录提示词、反向提示词、种子、步数、CFG、采样器、模型与尺寸。">i</span></div>
+              <div class="lab">同时保存提示词与参数<span class="info" data-tip="在图片旁边额外写一个同名文本文件，记录提示词、负面提示词、种子、步数、CFG、采样器、模型与尺寸。">i</span></div>
               <div class="switch" id="cfgSaveMeta"></div>
             </div>
           </div>
 
           <div class="sgroup">
-            <label class="field-label">元数据格式<span class="info" data-tip="JSON 便于程序读取与批量整理；TXT 便于直接翻看或贴到别处。">i</span></label>
+            <label class="field-label">元数据格式<span class="info" data-tip="JSON / TXT 为本项目格式，字段一致；LD 原生为 App 内导出的 _localdream_params 格式，可直接回填到 App。">i</span></label>
             <div class="seg" id="segMetaFmt">
               <button data-fmt="json" class="on">JSON</button>
               <button data-fmt="txt">TXT</button>
+              <button data-fmt="ld">LD 原生</button>
             </div>
           </div>
 
@@ -1277,7 +1286,7 @@ html.no-anim *{transition:none!important;animation:none!important}
         <textarea id="pmPos" placeholder="1girl, masterpiece, best quality, ..."></textarea>
       </div>
       <div class="ppane">
-        <div class="ppane-head"><span>反向提示词</span><span class="chip-mini" id="pmNegCount">0 / 77</span></div>
+        <div class="ppane-head"><span>负面提示词</span><span class="chip-mini" id="pmNegCount">0 / 77</span></div>
         <textarea id="pmNeg" placeholder="lowres, bad anatomy, ..."></textarea>
       </div>
     </div>
@@ -1336,6 +1345,7 @@ const DEFAULT_CFG = {
   colRight: 340
 };
 let CFG = loadCfg();
+if (CFG.mode === 'demo'){ CFG.mode = 'proxy'; saveCfg(); }
 
 function loadCfg(){
   try{
@@ -1475,8 +1485,25 @@ function buildMetaObject(meta){
   };
 }
 
+function buildLDMeta(meta){
+  const o = buildMetaObject(meta);
+  return {
+    _localdream_params: true,
+    v: 1,
+    model_id: o.model,
+    prompt: o.prompt,
+    negative_prompt: o.negative_prompt,
+    steps: o.steps,
+    cfg: o.cfg,
+    seed: o.seed,
+    scheduler: o.scheduler,
+    mode: S.genMode === 'img2img' ? 'IMG2IMG' : (S.genMode === 'inpaint' ? 'INPAINT' : 'TXT2IMG')
+  };
+}
+
 function buildMetaText(meta){
   const o = buildMetaObject(meta);
+  if (CFG.metaFmt === 'ld') return JSON.stringify(buildLDMeta(meta), null, 2) + '\n';
   if (CFG.metaFmt === 'txt'){
     return META_FIELDS.map(k => `${k}: ${o[k]}`).join('\n') + '\n';
   }
@@ -1518,7 +1545,8 @@ function updateNamePreview(){
   const el = $('#namePreview');
   if (!el) return;
   const fmtBtn = $$('#segMetaFmt button').find(b => b.classList.contains('on'));
-  const fmt = fmtBtn ? fmtBtn.dataset.fmt : (CFG.metaFmt || 'json');
+  let fmt = fmtBtn ? fmtBtn.dataset.fmt : (CFG.metaFmt || 'json');
+  if (fmt === 'ld') fmt = 'json';
   const saved = CFG.namePattern;
   CFG.namePattern = ($('#cfgNamePattern').value || '').trim() || '{date}_{time}_{seed}';
   CFG.histSize = clamp(parseInt($('#cfgHistSize').value) || 88, 56, 128);
@@ -1648,6 +1676,8 @@ const S = {
   history: [],
   drawW: 0, drawH: 0,
   lastSeed: null,
+  batchTotal: 0, batchDone: 0,
+  initSource: null,
   cat: 'all',
   upscalers: []
 };
@@ -1808,10 +1838,7 @@ function renderOnboarding(){
       填入手机的局域网 IP。手机端需先在 App 里进入受控模式。
     </div>
     <input type="text" id="obHost" placeholder="192.168.1.100" style="margin-bottom:6px">
-    <div style="display:flex;gap:6px">
-      <button class="btn" id="obConn" style="flex:1">连接</button>
-      <button class="btn ghost" id="obDemo">演示</button>
-    </div>`;
+    <button class="btn" id="obConn" style="width:100%">连接</button>`;
   const go = async () => {
     const v = ($('#obHost').value || '').trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
     if (!v){ toast('先填手机 IP', 'warn'); return; }
@@ -1820,9 +1847,6 @@ function renderOnboarding(){
   };
   $('#obConn').addEventListener('click', go);
   $('#obHost').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
-  $('#obDemo').addEventListener('click', () => {
-    CFG.mode = 'demo'; saveCfg(); enterDemo();
-  });
 }
 
 /** 「测试连接」：分别探测控制口与生成口，给出可执行的结论 */
@@ -1836,7 +1860,6 @@ function diagOut(msg, cls){
 }
 
 async function diagnose(){
-  if (CFG.mode === 'demo'){ enterDemo(); return; }
   if (!CFG.host) await resolveHostFromServer();
   if (!CFG.host){
     diagOut('请先填写手机 IP');
@@ -1899,7 +1922,6 @@ let connSeq = 0;
 async function connect(silent){
   const seq = ++connSeq;
   const stale = () => seq !== connSeq;
-  if (CFG.mode === 'demo'){ enterDemo(); return true; }
   if (!CFG.host) await resolveHostFromServer();
   if (stale()) return false;
   if (!CFG.host){ setConn('off', '未配置地址'); if(!silent) toast('请先在设置里填写手机 IP', 'warn'); openSettings(); return false; }
@@ -2061,7 +2083,13 @@ function resetSizeForModel(m){
 }
 
 function syncModelDefaults(m){
-  const d = m.defaults || {};
+  let d = m.defaults || {};
+  // 部分 DMD2 模型上报的默认值仍是普通模型的 20 步 / CFG 7，实际应为 8 步 / CFG 1
+  const id = (m.id || '').toLowerCase();
+  if (id.includes('dmd2') && ((d.steps || 0) > 12 || (d.cfg || 0) > 2)){
+    d = Object.assign({}, d, { steps: 8, cfg: 1 });
+    log('info', '已修正模型默认参数', { id: m.id, steps: 8, cfg: 1 });
+  }
   const steps = d.steps != null ? d.steps : 20;
   const cfg = d.cfg != null ? d.cfg : 7.5;
   $('#steps').value = steps; $('#stepsVal').textContent = steps; setRangeFill($('#steps'));
@@ -2069,6 +2097,8 @@ function syncModelDefaults(m){
   if (d.scheduler) $('#scheduler').value = d.scheduler;
   if (!$('#prompt').value && d.prompt) $('#prompt').value = d.prompt;
   $('#negPrompt').value = $('#negPrompt').value || (d.negative_prompt || CFG.negative);
+  updateCfgWarn();
+  scheduleTokenize();   // 换模型后立刻按新分词器刷新 token
 }
 
 function renderSizeControls(){
@@ -2166,10 +2196,7 @@ async function applyResolution(w, h){
   S.resolution = [w, h];
   renderSizeControls();
   updateHudModel();
-  if (CFG.mode === 'demo'){
-    if (S.status){ S.status.width = w; S.status.height = h; renderStatus(); }
-    return;
-  }
+  if (S.initSource) fitInitToTarget();
   if (!S.model) return;
   try{
     setConn('wait', '切换分辨率…');
@@ -2194,10 +2221,6 @@ async function selectModel(id){
   renderSizeControls();
   updateHudModel();
 
-  if (CFG.mode === 'demo'){
-    S.status = { serving_model_id: m.id, state: 'running', width: currentSize()[0], height: currentSize()[1], message: null };
-    renderStatus(); return;
-  }
   const [w, h] = currentSize();
   log('info', '载入模型', { id: m.id, size: `${w}x${h}` });
   try{
@@ -2544,26 +2567,50 @@ function setGenerating(on){
   }
 }
 
-async function doGenerate(){
+function scheduleBatch(){
+  if (S.batchTotal > 1 && S.batchDone + 1 < S.batchTotal){
+    S.batchDone++;
+    setTimeout(() => { if (!S.generating) doGenerate(true); }, 350);
+  } else {
+    if (S.batchTotal > 1) toast(`批次完成，共 ${S.batchTotal} 张`, 'ok');
+    S.batchTotal = 0;
+    S.batchDone = 0;
+    // 批次全部结束后再切回图生图：蒙版覆盖层会干扰新图预览，且中途切页会让后续张数变成图生图
+    if (S.genMode === 'inpaint'){
+      const tab = $$('.tab').find(t => t.dataset.tab === 'img2img');
+      if (tab) setTimeout(() => tab.click(), 120);
+    }
+  }
+}
+
+async function doGenerate(fromQueue){
   if (S.generating){ if (S.abort) S.abort.abort(); return; }
   if (!S.model){ toast('先选一个模型', 'warn'); return; }
   const prompt = $('#prompt').value.trim();
   if (!prompt){ toast('提示词不能为空', 'warn'); $('#prompt').focus(); return; }
   if (S.genMode !== 'txt2img' && !S.initImage){ toast('请先上传输入图', 'warn'); return; }
 
+  if (!fromQueue){
+    S.batchTotal = clamp(parseInt($('#batch').value) || 1, 1, 20);
+    S.batchDone = 0;
+    if (S.batchTotal > 1) log('info', '批次开始', { count: S.batchTotal });
+  }
+
   const body = buildBody();
   const [w, h] = currentSize();
 
   S.step = 0; S.total = body.steps || 20; S.tStart = performance.now(); S.firstStepMs = 0;
+  // 图生图 / 局部重绘需要先把输入图编码进潜空间
+  S.startPhase = (S.genMode === 'txt2img') ? '准备中…' : 'VAE 编码…';
   log('info', '开始生成', { model: S.model.id, size: `${w}x${h}`, steps: body.steps, cfg: body.cfg, seed: body.seed != null ? body.seed : 'random' });
   setGenerating(true);
   $('#hudStep').style.display = '';
   $('#hudStep').textContent = `0 / ${S.total}`;
+  $('#hudEta').style.display = '';
+  $('#hudEta').textContent = S.startPhase;
   $('#stageProgBar').style.width = '0%';
-  $('#hudEta').style.display = 'none';
   $('#resultMeta').innerHTML = '';
 
-  if (CFG.mode === 'demo'){ await demoGenerate(body, w, h); return; }
 
   const ctrl = new AbortController();
   S.abort = ctrl;
@@ -2619,6 +2666,7 @@ async function doGenerate(){
     if (!final) throw new Error('没有收到 complete 事件（后端可能中途被回收，重试一次）');
     finishGeneration(final, body);
   }catch(e){
+    S.batchTotal = 0; S.batchDone = 0;
     log(e.name === 'AbortError' ? 'warn' : 'error', '生成中断：' + (e.message || e.name), { model: S.model && S.model.id });
     if (e.name === 'AbortError'){ toast('已取消生成', 'warn'); }
     else if (e instanceof TypeError){ toast('连不上生成口 8081：模型后端可能未启动，重新点一次模型卡片再试', 'err'); }
@@ -2629,18 +2677,38 @@ async function doGenerate(){
   }
 }
 
+function updateCfgWarn(){
+  const el = $('#cfgWarn');
+  if (!el) return;
+  const v = parseFloat($('#cfg').value);
+  if (!(v < 1)){ el.style.display = 'none'; return; }
+  el.style.display = '';
+  el.textContent = v <= 0
+    ? 'CFG 归零等于彻底放开，负面提示词完全失效，画面大概率抽象到认不出来。'
+    : 'CFG 小于 1 时负面提示词基本不生效，出图容易跑偏——不过偶尔会得到挺有意思的东西，实在好奇可以试试。';
+}
+
 function updateProgress(){
   const total = S.total || 1;
   const pct = clamp(S.step / total * 100, 0, 100);
   $('#stageProgBar').style.width = pct.toFixed(1) + '%';
-  $('#hudStep').textContent = `${S.step} / ${total}`;
-  if (S.step > 0){
-    const elapsed = performance.now() - S.tStart;
-    const per = elapsed / S.step;
-    const remain = per * (total - S.step);
-    $('#hudEta').style.display = '';
-    $('#hudEta').textContent = remain > 300 ? `剩 ~${(remain / 1000).toFixed(1)}s` : '收尾…';
+  const batchTag = S.batchTotal > 1 ? `  ·  ${S.batchDone + 1}/${S.batchTotal}` : '';
+  $('#hudStep').textContent = `${S.step} / ${total}${batchTag}`;
+  const eta = $('#hudEta');
+  eta.style.display = '';
+
+  if (S.step <= 0){
+    eta.textContent = S.startPhase || '准备中…';
+    return;
   }
+  if (S.step >= total){
+    eta.textContent = 'VAE 解码…';
+    return;
+  }
+  // 用首步耗时作为步长基准，比「总耗时 ÷ 步数」稳定，避免开局跳成 0 秒
+  const per = S.firstStepMs > 0 ? S.firstStepMs : (performance.now() - S.tStart) / S.step;
+  const remain = per * (total - S.step);
+  eta.textContent = remain >= 1000 ? `剩 ~${(remain / 1000).toFixed(1)}s` : '采样中…';
 }
 
 function finishGeneration(final, body){
@@ -2698,6 +2766,7 @@ function finishGeneration(final, body){
   };
 
   log('info', '生成完成', { seed, size: `${final.width}x${final.height}`, ms: final.generation_time_ms, first: final.first_step_time_ms });
+  scheduleBatch();
   toast('生成完成 · ' + fmtS(final.generation_time_ms || 0), 'ok');
 }
 
@@ -2748,195 +2817,6 @@ function renderHistory(){
   });
 }
 
-/* ───────────── 演示模式 ───────────── */
-function enterDemo(){
-  connSeq++;   // 让任何在途的连接尝试作废
-  setConn('demo', '演示模式 · 无设备');
-  S.info = { app: 'localdream', version: '3.0.0-demo', protocol: 1, device: 'Demo Device' };
-  $('#devVer').textContent = 'protocol 1';
-  $('#devInfo').innerHTML = `<div class="warn-line">当前为演示模式：所有图像由浏览器本地合成，不会连接任何设备。用于预览界面与交互流程。</div>`;
-  S.models = [
-    {
-      id: 'sd15_qnn_512', name: 'SD 1.5 · QNN', description: '骁龙 NPU 后端，固定分辨率集合',
-      run_on_cpu: false, is_sdxl: false, is_anima: false, dit_kind: '', is_custom: false,
-      generation_size: 512, resolutions: [[512, 512], [512, 768], [768, 512]],
-      defaults: { prompt: '', negative_prompt: '', steps: 20, cfg: 7.5, scheduler: 'dpm' }
-    },
-    {
-      id: 'sdxl_qnn', name: 'SDXL · QNN', description: '1024 计算图，按 aspect_ratio 裁切输出',
-      run_on_cpu: false, is_sdxl: true, is_anima: false, dit_kind: '', is_custom: false,
-      generation_size: 1024, resolutions: [],
-      defaults: { prompt: '', negative_prompt: '', steps: 28, cfg: 6, scheduler: 'dpm_karras' }
-    },
-    {
-      id: 'sd15_mnn_cpu', name: 'SD 1.5 · MNN (CPU)', description: 'CPU 推理，可用 OpenCL 加速',
-      run_on_cpu: true, is_sdxl: false, is_anima: false, dit_kind: '', is_custom: false,
-      generation_size: 512, resolutions: [],
-      defaults: { prompt: '', negative_prompt: '', steps: 20, cfg: 7.5, scheduler: 'euler_a' }
-    },
-    {
-      id: 'z_image_turbo', name: 'Z-Image Turbo', description: 'DiT 后端，width / height 生效',
-      run_on_cpu: false, is_sdxl: false, is_anima: false, dit_kind: 'zimage', is_custom: false,
-      generation_size: 1024, resolutions: [],
-      defaults: { prompt: '', negative_prompt: '', steps: 8, cfg: 4, scheduler: 'euler' }
-    }
-  ];
-  S.status = { serving_model_id: null, state: 'idle', message: null, width: null, height: null };
-  S.model = S.models[0]; S.resolution = [512, 512];
-  S.status = { serving_model_id: S.model.id, state: 'running', message: null, width: 512, height: 512 };
-  syncModelDefaults(S.model); renderModels(); renderStatus(); renderSizeControls(); updateHudModel();
-}
-
-function mulberry32(a){
-  return function(){
-    a |= 0; a = a + 0x6D2B79F5 | 0;
-    let t = Math.imul(a ^ a >>> 15, 1 | a);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
-}
-function hashStr(s){
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
-  return h >>> 0;
-}
-
-function buildTargetCanvas(prompt, w, h){
-  const seed = hashStr(prompt || 'local dream');
-  const rnd = mulberry32(seed);
-  const c = document.createElement('canvas'); c.width = w; c.height = h;
-  const x = c.getContext('2d');
-  const hue = Math.floor(rnd() * 360);
-  const g = x.createLinearGradient(0, 0, w, h);
-  g.addColorStop(0, `hsl(${hue},62%,${22 + rnd() * 10}%)`);
-  g.addColorStop(.55, `hsl(${(hue + 40) % 360},58%,${34 + rnd() * 12}%)`);
-  g.addColorStop(1, `hsl(${(hue + 90) % 360},64%,${16 + rnd() * 12}%)`);
-  x.fillStyle = g; x.fillRect(0, 0, w, h);
-
-  for (let i = 0; i < 9; i++){
-    const cx = rnd() * w, cy = rnd() * h, r = (0.1 + rnd() * 0.42) * Math.min(w, h);
-    const rg = x.createRadialGradient(cx, cy, 0, cx, cy, r);
-    const hh = (hue + rnd() * 200) % 360;
-    rg.addColorStop(0, `hsla(${hh},80%,${45 + rnd() * 30}%,${.32 + rnd() * .3})`);
-    rg.addColorStop(1, `hsla(${hh},80%,50%,0)`);
-    x.fillStyle = rg; x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fill();
-  }
-  const v = x.createRadialGradient(w / 2, h / 2, Math.min(w, h) * .2, w / 2, h / 2, Math.max(w, h) * .78);
-  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.55)');
-  x.fillStyle = v; x.fillRect(0, 0, w, h);
-  return c;
-}
-
-function buildNoiseCanvas(w, h, seed){
-  const c = document.createElement('canvas'); c.width = w; c.height = h;
-  const x = c.getContext('2d');
-  const img = x.createImageData(w, h);
-  const rnd = mulberry32(seed);
-  const d = img.data;
-  for (let i = 0; i < d.length; i += 4){
-    const n = (rnd() * 255) | 0;
-    d[i] = n; d[i + 1] = n; d[i + 2] = n; d[i + 3] = 255;
-  }
-  x.putImageData(img, 0, 0);
-  return c;
-}
-
-async function demoGenerate(body, w, h){
-  const ctrl = new AbortController(); S.abort = ctrl;
-  const total = body.steps || 20;
-  S.total = total;
-  const seed = body.seed != null ? body.seed : (Math.random() * 4294967295) >>> 0;
-  const target = buildTargetCanvas(body.prompt, w, h);
-  const noise = buildNoiseCanvas(w, h, seed);
-  const firstMs = 180 + Math.random() * 220;
-
-  S.drawW = w; S.drawH = h;
-  stage.width = w; stage.height = h;
-  $('#stageFrame').style.display = '';
-  $('#emptyStage').style.display = 'none';
-  syncMaskSize(w, h);
-  resetView();
-
-  const compose = k => {
-    const t = k / total;
-    const ease = 1 - Math.pow(1 - t, 2.2);
-    sctx.globalAlpha = 1; sctx.drawImage(noise, 0, 0);
-    sctx.globalAlpha = clamp(ease, 0, 1);
-    sctx.drawImage(target, 0, 0);
-    sctx.globalAlpha = 1;
-    if (t < 1){
-      const rnd = mulberry32(seed + k);
-      sctx.globalAlpha = (1 - t) * .5;
-      for (let i = 0; i < 3; i++){
-        sctx.fillStyle = `hsl(${(rnd() * 360) | 0},70%,60%)`;
-        sctx.beginPath();
-        sctx.arc(rnd() * w, rnd() * h, (rnd() * .06 + .01) * w, 0, Math.PI * 2);
-        sctx.fill();
-      }
-      sctx.globalAlpha = 1;
-    }
-  };
-
-  const t0 = performance.now();
-  try{
-    for (let k = 1; k <= total; k++){
-      if (ctrl.signal.aborted) throw new DOMException('Aborted', 'AbortError');
-      compose(k);
-      S.step = k;
-      if (k === 1) S.firstStepMs = performance.now() - t0 + firstMs;
-      updateProgress();
-      const stride = body.show_diffusion_process ? Math.max(1, body.show_diffusion_stride || 1) : 1;
-      const delay = body.show_diffusion_process && (k % stride === 0) ? 95 : 32;
-      await new Promise(r => setTimeout(r, delay));
-    }
-    const genMs = firstMs + total * (55 + Math.random() * 40);
-    const final = {
-      type: 'complete', image: '', seed, width: w, height: h, channels: 3,
-      format: 'raw',
-      generation_time_ms: Math.round(genMs),
-      first_step_time_ms: Math.round(firstMs)
-    };
-    // 演示模式的 complete 事件没有 raw 图，直接复用已绘制的画布
-    finishGenerationDemo(final, body);
-  }catch(e){
-    if (e.name === 'AbortError') toast('已取消生成', 'warn');
-    else toast('演示生成出错：' + e.message, 'err');
-  }finally{
-    S.abort = null; setGenerating(false);
-  }
-}
-
-function finishGenerationDemo(final, body){
-  $('#stageProgBar').style.width = '100%';
-  $('#hudStep').textContent = `${final.width} × ${final.height}`;
-  $('#hudEta').style.display = 'none';
-  if (!S.seedLocked) $('#seedInput').value = randU32();
-  S.lastSeed = final.seed;
-  $('#resultMeta').innerHTML =
-    `<span>seed <b class="copyable" data-copy="${final.seed}" data-copy-label="已复制种子">${final.seed}</b></span>` +
-    `<span>尺寸 <b>${final.width}×${final.height}</b></span>` +
-    `<span>首步 <b>${fmtS(final.first_step_time_ms)}</b></span>` +
-    `<span>总耗时 <b>${fmtS(final.generation_time_ms)}</b></span>` +
-    `<span style="color:var(--violet)">演示合成</span>` +
-    `<span style="margin-left:auto"><a href="#" id="lnkDl2" style="color:var(--accent);text-decoration:none">下载 PNG</a></span>`;
-  showMetaPrompt(body.prompt || '');
-  bindCopyables($('#resultMeta'));
-  const dataUrl = stage.toDataURL('image/png');
-  addHistory(dataUrl, { seed: final.seed, prompt: body.prompt, w: final.width, h: final.height });
-  stage.toBlob(b => autoSaveImage(b, {
-    prompt: body.prompt, negative: body.negative_prompt, seed: final.seed,
-    steps: body.steps, cfg: body.cfg, scheduler: body.scheduler,
-    model: S.model ? S.model.id : '', w: final.width, h: final.height
-  }), 'image/png');
-  const dl = $('#lnkDl2');
-  if (dl) dl.onclick = e => {
-    e.preventDefault();
-    const a = document.createElement('a'); a.href = dataUrl;
-    a.download = `ld-demo-${final.seed}.png`; a.click();
-  };
-  toast('演示生成完成', 'ok');
-}
-
 /* ───────────── tokenize 计数 ───────────── */
 let tokenTimer = null;
 function scheduleTokenize(){
@@ -2944,10 +2824,6 @@ function scheduleTokenize(){
   const prompt = $('#prompt').value.trim();
   if (!prompt){ $('#tokenChip').textContent = '— tokens'; $('#tokenChip').classList.remove('over'); return; }
   tokenTimer = setTimeout(async () => {
-    if (CFG.mode === 'demo'){
-      const rough = Math.min(77, Math.ceil(prompt.split(/[\s,]+/).filter(Boolean).length * 1.7));
-      setTokenChip(rough, 77, -1); return;
-    }
     const r = await tokenizeText(prompt);
     if (r) setTokenChip(r.count, r.max, r.count > r.max ? r.count - r.max : -1);
     else $('#tokenChip').textContent = '— tokens';
@@ -3085,6 +2961,7 @@ function applySizeFromMeta(w, h){
 function applyMetaObject(o){
   if (!o) return false;
   const num = v => { const n = Number(v); return isFinite(n) ? n : null; };
+  const native = o._localdream_params === true;
 
   if (o.prompt != null) $('#prompt').value = String(o.prompt);
   if (o.negative_prompt != null) $('#negPrompt').value = String(o.negative_prompt);
@@ -3110,11 +2987,27 @@ function applyMetaObject(o){
   const w = num(o.width), h = num(o.height);
   if (w && h) applySizeFromMeta(w, h);
 
-  if (o.model && S.model && S.model.id !== String(o.model)){
-    toast(`该元数据来自 ${o.model}，当前模型为 ${S.model.id}`, 'warn');
+  // 原生元数据的模式字段：TXT2IMG / IMG2IMG / INPAINT
+  if (o.mode){
+    const map = { TXT2IMG: 'txt2img', IMG2IMG: 'img2img', INPAINT: 'inpaint' };
+    const key = map[String(o.mode).toUpperCase()];
+    if (key){
+      const tab = $$('.tab').find(t => t.dataset.tab === key);
+      if (tab) tab.click();
+    }
+  }
+
+  const modelId = o.model_id || o.model || '';
+  if (modelId && S.model && S.model.id !== String(modelId)){
+    toast(`该元数据来自 ${modelId}，当前模型为 ${S.model.id}`, 'warn');
   }
   scheduleTokenize();
-  log('info', '导入元数据', { model: o.model || '', seed: o.seed, size: `${o.width || '?'}x${o.height || '?'}` });
+  log('info', '导入元数据', {
+    native,
+    model: modelId,
+    seed: o.seed,
+    size: `${o.width || '?'}x${o.height || '?'}`
+  });
   return true;
 }
 
@@ -3265,10 +3158,6 @@ let pmTimer = null;
 
 async function tokenizeText(text){
   if (!text) return null;
-  if (CFG.mode === 'demo'){
-    const rough = Math.min(77, Math.ceil(text.split(/[\s,]+/).filter(Boolean).length * 1.7));
-    return { count: rough, max: 77 };
-  }
   // /tokenize 在生成口 8081 上，先打它；控制口只是兜底
   try{
     const res = await fetch(baseUrl(CFG.genPort) + '/tokenize', {
@@ -3327,7 +3216,7 @@ function applyPromptModal(){
 }
 
 /* ═════════════ 一键图生图 ═════════════ */
-function canvasToInitImage(){
+function canvasToInitImage(switchTab){
   if (!stage.width){ toast('画布上没有图', 'warn'); return; }
   const [tw, th] = currentSize();
   const sw = stage.width, sh = stage.height;
@@ -3338,6 +3227,7 @@ function canvasToInitImage(){
   cx.drawImage(stage, (tw - sw * s) / 2, (th - sh * s) / 2, sw * s, sh * s);
   const b64 = c.toDataURL('image/png').split(',')[1];
   S.initImage = { b64, w: tw, h: th };
+  S.initSource = c;
 
   // 画布同步为目标尺寸，所见即所传
   stage.width = tw; stage.height = th;
@@ -3348,10 +3238,14 @@ function canvasToInitImage(){
   syncMaskSize(tw, th);
   resetView();
 
-  const tab = $$('.tab').find(t => t.dataset.tab === 'img2img');
-  if (tab) tab.click();
+  if (switchTab !== false){
+    const tab = $$('.tab').find(t => t.dataset.tab === 'img2img');
+    if (tab) tab.click();
+  }
+  if (S.genMode === 'inpaint') maskCanvas.classList.add('on');
   $('#dropZone').innerHTML = `<b style="color:var(--ok)">${tw}×${th} 已就绪</b>点击可替换`;
-  toast(`已转为图生图底图 ${tw}×${th}`, 'ok');
+  updateInitWarn(S.initSource, tw, th, Math.abs(sw / sh - tw / th) > 0.005);
+  toast(`已作为底图 ${tw}×${th}`, 'ok');
 }
 
 /* ═════════════ 图像超分 ═════════════ */
@@ -3430,9 +3324,7 @@ function renderUpChips(){
     if (!(S.upscalers || []).length){
       tip.style.display = '';
       tip.className = 'pop-tip warn';
-      tip.textContent = CFG.mode === 'demo'
-        ? '演示模式没有真实设备，无法执行超分。'
-        : '未检测到任何放大器。请先在 Local Dream 内下载（模型页 → 放大器），再点下方「重新检查」。';
+      tip.textContent = '未检测到任何放大器。请先在 Local Dream 内下载（模型页 → 放大器），再点下方「重新检查」。';
     } else if (!up){
       tip.style.display = '';
       tip.className = 'pop-tip warn';
@@ -3443,7 +3335,7 @@ function renderUpChips(){
   }
   const run = $('#btnRunUpscale');
   if (run){
-    run.disabled = !up || UP.running || CFG.mode === 'demo';
+    run.disabled = !up || UP.running;
     run.classList.toggle('arm', !!UP.confirmPending);
     if (!UP.running){
       run.textContent = UP.confirmPending ? `再次点击确认 ${UP.pendingSize}` : '开始超分';
@@ -3463,7 +3355,6 @@ function setUpscaleBusy(on){
 async function runUpscale(){
   if (UP.running) return;
   if (!stage.width){ toast('画布上没有图', 'warn'); return; }
-  if (CFG.mode === 'demo'){ toast('演示模式没有真实设备，无法超分', 'warn'); return; }
   const up = pickUpscaler(UP.kind);
   if (!up){ toast('设备上没有这类放大器', 'err'); return; }
 
@@ -3597,6 +3488,41 @@ function initControls(){
   makeEditableNum($('#stepsVal'), $('#steps'), { min: 1, max: 60, decimals: 0 });
   makeEditableNum($('#cfgVal'), $('#cfg'), { min: 0, max: 20, decimals: 1 });
   makeEditableNum($('#denoiseVal'), $('#denoise'), { min: 0, max: 1, decimals: 2 });
+
+  // 批次：1–20，允许直接输入
+  $('#batch').addEventListener('input', e => {
+    const v = parseInt(e.target.value);
+    if (!isFinite(v)) return;
+    if (v > 20) e.target.value = 20;
+    if (v < 1 && String(e.target.value).trim() !== '') e.target.value = 1;
+  });
+  $('#batch').addEventListener('blur', e => {
+    e.target.value = clamp(parseInt(e.target.value) || 1, 1, 20);
+  });
+
+  // CFG < 1 提示
+  $('#cfg').addEventListener('input', updateCfgWarn);
+  updateCfgWarn();
+
+  // 局部重绘 / 图生图：直接用当前预览图
+  $('#btnUsePreview').addEventListener('click', () => canvasToInitImage(false));
+
+  // 过程预览：开启时提示需在设备端配置
+  $('#swProcess').addEventListener('click', () => {
+    if ($('#swProcess').classList.contains('on')){
+      toast('过程预览需先在受控设备上开启对应设置，否则收不到中间帧', 'info');
+    }
+  });
+
+  // 粘贴元数据
+  $('#btnApplyMeta').addEventListener('click', () => {
+    const txt = $('#metaInput').value.trim();
+    if (!txt){ toast('先粘贴元数据', 'warn'); return; }
+    const o = parseMetaText(txt);
+    if (!o || !applyMetaObject(o)){ toast('无法解析这段元数据', 'err'); return; }
+    toast('已应用元数据', 'ok');
+    $('#metaInput').value = '';
+  });
   $('#steps').addEventListener('input', e => { $('#stepsVal').textContent = e.target.value; setRangeFill(e.target); });
   $('#cfg').addEventListener('input', e => { $('#cfgVal').textContent = (+e.target.value).toFixed(1); setRangeFill(e.target); });
   $('#stride').addEventListener('input', e => {
@@ -3627,14 +3553,15 @@ function initControls(){
     if (needImage && !S.initImage && S.genMode === 'inpaint') toast('局部重绘需要先上传底图', 'warn');
   }));
 
-  // 反向提示词折叠
+  // 负面提示词折叠
   $('#negToggle').addEventListener('click', () => {
     $('#negToggle').classList.toggle('open');
     $('#negWrap').classList.toggle('open');
   });
 
   $('#prompt').addEventListener('input', scheduleTokenize);
-  $('#btnGen').addEventListener('click', doGenerate);
+  // 必须包一层：直接绑定会让点击事件对象被当作 fromQueue 参数
+  $('#btnGen').addEventListener('click', () => doGenerate(false));
 
   // 种子
   $('#btnDice').addEventListener('click', () => {
@@ -3870,7 +3797,7 @@ function initControls(){
   initTips();
 
   /* ── 画布右上角：一键图生图 / 超分 ── */
-  $('#btnToI2I').addEventListener('click', canvasToInitImage);
+  $('#btnToI2I').addEventListener('click', () => canvasToInitImage(true));
   const upPop = $('#upPop');
   $('#btnUpscale').addEventListener('click', e => {
     e.stopPropagation();
@@ -3882,7 +3809,6 @@ function initControls(){
   $('#btnCloseUp').addEventListener('click', () => upPop.classList.remove('on'));
   $('#btnRunUpscale').addEventListener('click', runUpscale);
   $('#btnCheckUp').addEventListener('click', async () => {
-    if (CFG.mode === 'demo'){ toast('演示模式没有真实设备，无法检测', 'warn'); return; }
     await loadModels();
     renderUpChips();
     const n = (S.upscalers || []).length;
@@ -4041,32 +3967,31 @@ async function persistSettings(stayOpen){
 
 function renderConnStatus(){
   const i = S.info;
-  const demo = CFG.mode === 'demo';
-  const cls = demo ? 'demo' : (i ? 'on' : 'off');
+  const cls = i ? 'on' : 'off';
   $('#setDot').className = 'dot ' + cls;
-  $('#setConnTitle').textContent = demo ? '演示模式' : (i ? '已连接' : '未连接');
-  $('#setConnSub').textContent = demo
-    ? '本地合成，不访问设备'
-    : (i ? `${i.device || '设备'} · ${CFG.host || '—'}:${CFG.ctlPort}` : (CFG.host ? '点「刷新」或「保存并测试连接」重试' : '尚未填写手机地址'));
+  $('#setConnTitle').textContent = i ? '已连接' : '未连接';
+  $('#setConnSub').textContent = i
+    ? `${i.device || '设备'} · ${CFG.host || '—'}:${CFG.ctlPort}`
+    : (CFG.host ? '点「刷新」或「测试连接」重试' : '尚未填写手机地址');
 }
 
 function renderAbout(){
   const i = S.info;
   const stateMap = { idle: '空闲', starting: '载入中', running: '运行中', error: '错误' };
   const rows = [
-    ['连接方式', CFG.mode === 'demo' ? '演示模式' : (CFG.mode === 'proxy' ? '同源代理' : '直连手机')],
-    ['连接状态', CFG.mode === 'demo' ? '本地合成' : (i ? '已连接' : '未连接')],
+    ['连接方式', CFG.mode === 'proxy' ? '同源代理' : '直连手机'],
+    ['连接状态', i ? '已连接' : '未连接'],
     ['设备', i ? (i.device || '—') : '—'],
     ['App 版本', i ? i.version : '—'],
     ['协议版本', i && i.protocol ? 'protocol ' + i.protocol : '—'],
-    ['地址', (CFG.host || '—') + (CFG.mode === 'demo' ? '' : ` · ${CFG.ctlPort}/${CFG.genPort}`)],
+    ['地址', (CFG.host || '—') + ` · ${CFG.ctlPort}/${CFG.genPort}`],
     ['可用模型', String(S.models.length || 0)],
     ['当前挂载', (S.status && S.status.serving_model_id) || '—'],
     ['后端状态', S.status ? (stateMap[S.status.state] || S.status.state) : '—']
   ];
   $('#aboutInfo').innerHTML = rows.map(([k, v]) =>
     `<div class="about-row"><span>${escapeHtml(k)}</span><b>${escapeHtml(String(v))}</b></div>`).join('');
-  $('#snVersion').textContent = i ? `v${i.version}` : (CFG.mode === 'demo' ? 'DEMO' : '未连接');
+  $('#snVersion').textContent = i ? `v${i.version}` : '未连接';
 }
 
 function openSettings(sec){
@@ -4079,35 +4004,62 @@ function openSettings(sec){
 }
 function closeSettings(){ $('#settingsModal').classList.remove('on'); }
 
+function updateInitWarn(src, tw, th, cropped){
+  const el = $('#initWarn');
+  if (!el) return;
+  if (!src){ el.style.display = 'none'; return; }
+  el.style.display = '';
+  if (cropped){
+    el.textContent = `输入图 ${src.width}×${src.height} 与目标 ${tw}×${th} 比例不同，已居中裁切适配。`;
+  } else if (src.width !== tw || src.height !== th){
+    el.textContent = `输入图 ${src.width}×${src.height} 已缩放到 ${tw}×${th}。`;
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+/** 把输入图按当前目标尺寸做 cover 裁切，避免后端报 Img size mismatch */
+function fitInitToTarget(){
+  const src = S.initSource;
+  if (!src) return;
+  const [tw, th] = currentSize();
+  const c = document.createElement('canvas');
+  c.width = tw; c.height = th;
+  const x = c.getContext('2d');
+  const k = Math.max(tw / src.width, th / src.height);
+  x.drawImage(src, (tw - src.width * k) / 2, (th - src.height * k) / 2, src.width * k, src.height * k);
+  S.initImage = { b64: c.toDataURL('image/png').split(',')[1], w: tw, h: th };
+
+  off.width = tw; off.height = th;
+  offctx.drawImage(c, 0, 0);
+  stage.width = tw; stage.height = th;
+  sctx.drawImage(c, 0, 0);
+  S.drawW = tw; S.drawH = th;
+  $('#stageFrame').style.display = '';
+  $('#emptyStage').style.display = 'none';
+  $('#btnToI2I').disabled = false;
+  $('#btnUpscale').disabled = false;
+  $('#stageWrap').classList.add('has-image');
+  syncMaskSize(tw, th);
+  if (S.genMode === 'inpaint') maskCanvas.classList.add('on');
+  resetView();
+
+  const cropped = Math.abs(src.width / src.height - tw / th) > 0.005;
+  updateInitWarn(src, tw, th, cropped);
+  $('#dropZone').innerHTML = `<b style="color:var(--ok)">${tw}×${th} 已就绪</b>点击可替换`;
+}
+
 function loadInitFile(file){
   if (!file.type.startsWith('image/')){ toast('请选择图片文件', 'warn'); return; }
   const r = new FileReader();
   r.onload = () => {
     const img = new Image();
     img.onload = () => {
-      const c = document.createElement('canvas');
-      c.width = img.width; c.height = img.height;
-      c.getContext('2d').drawImage(img, 0, 0);
-      const b64 = c.toDataURL('image/png').split(',')[1];
-      S.initImage = { b64, w: img.width, h: img.height };
-
-      // 直接显示底图
-      off.width = img.width; off.height = img.height;
-      offctx.drawImage(img, 0, 0);
-      stage.width = img.width; stage.height = img.height;
-      sctx.drawImage(img, 0, 0);
-      $('#stageFrame').style.display = '';
-      $('#emptyStage').style.display = 'none';
-      syncMaskSize(img.width, img.height);
-      if (S.genMode === 'inpaint') maskCanvas.classList.add('on');
-      resetView();
-
+      S.initSource = img;
+      fitInitToTarget();
       const [tw, th] = currentSize();
       if (img.width !== tw || img.height !== th){
-        toast(`输入图 ${img.width}×${img.height} 与目标 ${tw}×${th} 不一致，后端会报 Img size mismatch`, 'warn');
-        $('#dropZone').innerHTML = `<b style="color:var(--warn)">尺寸不匹配：${img.width}×${img.height} → ${tw}×${th}</b>点击换图，或先裁剪`;
-      } else {
-        $('#dropZone').innerHTML = `<b style="color:var(--ok)">${img.width}×${img.height} 已就绪</b>点击可替换`;
+        log('info', '输入图已适配目标尺寸', { from: `${img.width}x${img.height}`, to: `${tw}x${th}` });
       }
     };
     img.src = r.result;
@@ -4143,7 +4095,6 @@ function escapeHtml(s){
   applyZoom();
   restoreSaveDir().then(renderSaveState);
 
-  if (CFG.mode === 'demo'){ enterDemo(); return; }
   if (!CFG.host) await resolveHostFromServer();
   if (!CFG.host){ setConn('off', '未配置地址'); renderOnboarding(); return; }
   const ok = await connect(true);
