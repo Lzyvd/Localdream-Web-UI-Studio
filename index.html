@@ -620,6 +620,14 @@ select:focus,input[type=text]:focus,input[type=number]:focus{border-color:rgba(v
   line-height:1.6;resize:vertical;outline:none;min-height:68px;transition:.16s var(--ease);
 }
 .settings-body textarea:focus{border-color:rgba(var(--accent-rgb),.7);box-shadow:0 0 0 3px rgba(var(--accent-rgb),.1)}
+/* 右栏同样需要，否则会露出浏览器默认白底 */
+.col-scroll textarea{
+  width:100%;padding:8px 10px;border-radius:var(--r-sm);border:1px solid var(--line);
+  background:var(--panel-2);color:var(--text);font-family:inherit;font-size:11.5px;
+  line-height:1.6;resize:vertical;outline:none;min-height:58px;transition:.16s var(--ease);
+}
+.col-scroll textarea:focus{border-color:rgba(var(--accent-rgb),.7);box-shadow:0 0 0 3px rgba(var(--accent-rgb),.1)}
+.col-scroll textarea::placeholder{color:var(--text-faint)}
 .btn.primary{background:rgba(var(--accent-rgb),.92);border-color:transparent;color:#fff;font-weight:600}
 .btn.primary:hover:not(:disabled){background:var(--accent)}
 .btn.danger{color:var(--err);border-color:rgba(255,107,107,.35)}
@@ -767,7 +775,7 @@ html.no-anim *{transition:none!important;animation:none!important}
 
   <div class="file-warn" id="fileWarn">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:16px;height:16px;flex:0 0 auto;margin-top:2px"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>
-    <div>
+    <div id="fileWarnBody">
       <b>页面是直接打开的本地文件（file://）</b>，同源代理不可用——<code>/p/8808</code> 这类接口路径在文件协议下不存在，请求会直接失败。
       请改用命令行启动：<code>python serve.py --host 手机IP</code>，再访问 <code>http://127.0.0.1:8777</code>。
     </div>
@@ -1123,6 +1131,14 @@ html.no-anim *{transition:none!important;animation:none!important}
         <!-- ③ 外观 -->
         <div class="sec-pane" data-pane="ui">
           <div class="sgroup">
+            <label class="field-label">语言<span class="info" data-tip="界面语言，切换后立即生效，并记录在本机。">i</span></label>
+            <select id="cfgLang">
+              <option value="zh">中文</option>
+              <option value="en">English</option>
+              <option value="ru">Русский</option>
+            </select>
+          </div>
+          <div class="sgroup">
             <label class="field-label">主题<span class="info" data-tip="OLED 纯黑会把所有底色压到 #000 并关闭装饰光晕，适合 OLED 屏省电；跟随系统读取 prefers-color-scheme。">i</span></label>
             <select id="cfgTheme">
               <option value="dark">深色</option>
@@ -1341,6 +1357,7 @@ const DEFAULT_CFG = {
   metaFmt: 'json',
   namePattern: '{date}_{time}_{seed}',
   histSize: 88,
+  lang: '',
   colLeft: 294,
   colRight: 340
 };
@@ -1550,26 +1567,27 @@ function updateNamePreview(){
   const saved = CFG.namePattern;
   CFG.namePattern = ($('#cfgNamePattern').value || '').trim() || '{date}_{time}_{seed}';
   CFG.histSize = clamp(parseInt($('#cfgHistSize').value) || 88, 56, 128);
+  CFG.lang = $('#cfgLang').value;
   const base = buildBaseName({});
   CFG.namePattern = saved;
   const metaOn = $('#cfgSaveMeta').classList.contains('on');
-  el.textContent = `预览：${base}.png` + (metaOn ? `  +  ${base}.${fmt}` : '');
+  el.textContent = `${tr('预览：')}${base}.png` + (metaOn ? `  +  ${base}.${fmt}` : '');
 }
 
 function renderSaveState(){
   const el = $('#savePath');  if (!el) return;
   if (!FS_SUPPORTED){
     el.className = 'save-path warn';
-    el.textContent = '当前浏览器不支持目录写入（需 Chrome / Edge）';
+    el.textContent = tr('当前浏览器不支持目录写入，请用 Chrome / Edge');
     return;
   }
   if (!saveDirHandle){
     el.className = 'save-path';
-    el.textContent = '未选择文件夹';
+    el.textContent = tr('未选择文件夹');
     return;
   }
   el.className = 'save-path ok';
-  el.textContent = '当前目录：' + saveDirHandle.name;
+  el.textContent = tr('当前目录：') + saveDirHandle.name;
 }
 
 function hexToRgb(h){
@@ -1686,13 +1704,498 @@ const S = {
 function toast(msg, type){
   const el = document.createElement('div');
   el.className = 'toast' + (type ? ' ' + type : '');
-  el.textContent = msg;
+  el.textContent = tr(msg);
   $('#toasts').appendChild(el);
   setTimeout(() => { el.style.transition = 'opacity .3s,transform .3s'; el.style.opacity = '0'; el.style.transform = 'translateX(14px)'; }, 2600);
   setTimeout(() => el.remove(), 3000);
 }
 const fmtS = ms => ms >= 1000 ? (ms / 1000).toFixed(2) + ' s' : Math.round(ms) + ' ms';
-const fmtN = n => (n || 0).toLocaleString('zh-CN');
+const fmtN = n => (n || 0).toLocaleString(langLocale());
+
+
+/* ═════════════ 多语言 ═════════════ */
+const LANG_LIST = ['zh', 'en', 'ru'];
+let LANG = 'zh';
+const LANG_LOCALE = { zh: 'zh-CN', en: 'en-US', ru: 'ru-RU' };
+
+const I18N = {
+  en: {
+    /* 通用 */
+    '设置': 'Settings', '关闭': 'Close', '保存': 'Save', '取消': 'Cancel', '应用': 'Apply',
+    '复制': 'Copy', '展开': 'Expand', '收起': 'Collapse', '清空': 'Clear', '刷新': 'Refresh',
+    '恢复默认': 'Reset', '测试连接': 'Test connection', '设备': 'Device', '项目': 'Project',
+    '作者': 'Author', '运行时': 'Runtime', '主题': 'Theme', '外观': 'Appearance',
+    '随机': 'Random', '解除': 'Remove', '类型': 'Type', '尺寸': 'Size', '模型': 'Models',
+    /* 主题 */
+    '深色': 'Dark', '浅色': 'Light', 'OLED 纯黑': 'OLED black', '跟随系统': 'System',
+    /* 连接 */
+    '连接': 'Connection', '连接方式': 'Mode', '同源代理': 'Same-origin proxy', '直连手机': 'Direct',
+    '手机地址': 'Device address', '控制口 ctl': 'Control port', '生成口 gen': 'Generation port',
+    '连通性自检': 'Connectivity check', '尚未检测': 'Not tested', '未连接': 'Not connected',
+    '尚未连接': 'Not connected', '受控模式连接状态': 'Controlled mode status',
+    /* 生成 */
+    '生成': 'Generate', '采样': 'Sampling', '步数 steps': 'Steps', '采样器': 'Sampler',
+    '批次 count': 'Batch', '高级': 'Advanced', '过程预览': 'Process preview',
+    '预览步幅': 'Preview stride', '默认预览步幅': 'Default stride',
+    '默认开启过程预览': 'Preview on by default', 'OpenCL 加速': 'OpenCL acceleration',
+    '文生图': 'Text to image', '图生图': 'Image to image', '局部重绘': 'Inpaint',
+    '输入图': 'Input image', '点击或拖入图片': 'Click or drop an image',
+    '使用当前预览图': 'Use current preview', '去噪强度 denoise': 'Denoise strength',
+    '笔刷大小': 'Brush size', '清除蒙版': 'Clear mask',
+    '在画布上涂抹需要重绘的区域（白色=重绘区）': 'Paint the area to repaint (white = repaint)',
+    '宽 W': 'W', '高 H': 'H', '预览图大小': 'Thumbnail size', '缩略图边长': 'Thumbnail size',
+    /* 画布 */
+    '画布空着': 'Canvas is empty',
+    '左侧选一个模型，写下提示词，点「生成」。扩散中间步骤会实时绘制在这里。':
+      'Pick a model on the left, write a prompt, then hit Generate. Diffusion steps are drawn here live.',
+    '适应窗口': 'Fit', '缩放比例': 'Zoom', '把当前画面作为图生图底图': 'Use canvas as img2img base',
+    '用设备端放大器提升分辨率': 'Upscale on device', '重置视图（双击画布亦可）': 'Reset view (or double-click)',
+    '展开提示词编辑器': 'Open prompt editor', '拖动调整左栏宽度': 'Drag to resize left column',
+    '拖动调整右栏宽度': 'Drag to resize right column', '切换明暗主题': 'Toggle theme',
+    /* 提示词 */
+    '正向提示词': 'Positive prompt', '负面提示词': 'Negative prompt',
+    '正向提示词，例如：1girl, masterpiece, best quality, cinematic lighting, rain, umbrella':
+      'Positive prompt, e.g. 1girl, masterpiece, best quality, cinematic lighting, rain, umbrella',
+    '提示词编辑器': 'Prompt editor', 'Ctrl + Enter 应用': 'Ctrl + Enter to apply',
+    '默认负面提示词': 'Default negative prompt',
+    /* 历史 */
+    '历史': 'History', '历史作品': 'Saved results', '历史设置': 'History settings',
+    '保留上限': 'Keep at most', '本地数据': 'Local data', '配置占用': 'Config size',
+    '清空历史作品': 'Clear history', '0 张': '0 images', '0 条': '0 entries',
+    '只清当前会话内存里的缩略图，不影响设备与磁盘上的任何文件。':
+      'Clears in-memory thumbnails only. Files on the device and disk are untouched.',
+    /* 元数据 */
+    '元数据': 'Metadata', '元数据格式': 'Format', '应用元数据': 'Apply metadata',
+    '导入元数据文件': 'Import metadata file', '拖入 .json / .txt 文件': 'Drop a .json / .txt file',
+    '命名规则': 'Naming pattern', '导出日志': 'Export log', '诊断日志': 'Diagnostics log',
+    /* 超分 */
+    '超分': 'Upscale', '图像超分': 'Image upscale', '开始超分': 'Start upscale',
+    '放大倍率': 'Scale', '重新检查放大器': 'Re-check upscalers',
+    /* 保存 */
+    '保存': 'Save', '生成后自动保存': 'Auto-save results', '选择文件夹': 'Choose folder',
+    '未选择文件夹': 'No folder selected', '同时保存提示词与参数': 'Save prompt and params',
+    '配置备份': 'Backup', '导入 JSON': 'Import JSON', '导出 JSON': 'Export JSON',
+    '输出': 'Output',
+    /* 设置导航 */
+    '主题 · 强调色': 'Theme · Accent', '提示词 · 预览': 'Prompt · Preview',
+    '缩略图 · 清理': 'Thumbnails · Cleanup', '目录 · 元数据 · 命名': 'Folder · Metadata · Naming',
+    '导入导出 · 历史': 'Import/Export · History', '项目 · 接口依据': 'Project · API refs',
+    '模式 · 地址 · 端口': 'Mode · Address · Ports',
+    /* 关于 */
+    '源码仓库': 'Repository', '接口依据': 'API references', '强调色': 'Accent color',
+    '从图片取色': 'Pick from image', '减少动效': 'Reduce motion', '已记录': 'Recorded',
+    '后端状态': 'Backend status', '连接后自动载入模型列表': 'Models load after connecting',
+    '如果这个项目对你有帮助，欢迎到仓库点个 Star，也欢迎提 Issue 或 PR 一起完善。':
+      'If this project is useful, a Star on the repository is appreciated. Issues and pull requests are welcome.',
+    /* 占位与标题 */
+    '留空=每次随机；填数字则固定种子': 'Empty = random each time; a number locks the seed',
+    '随机种子': 'Random seed', '锁定当前种子': 'Lock seed',
+    'PNG / JPG，需与目标尺寸一致': 'PNG / JPG, matched to the target size',
+    '粘贴元数据后点「应用」，支持 Local Dream 原生参数与 JSON / key: value':
+      'Paste metadata and hit Apply. Supports Local Dream native params, JSON and key: value.',
+    '默认 8808，提供 /info、/models、/status、/select。': 'Default 8808: /info, /models, /status, /select.',
+    '默认 8081，提供 /generate、/tokenize、/upscale。只有选定模型后才会监听。':
+      'Default 8081: /generate, /tokenize, /upscale. Only listens after a model is loaded.',
+    '拖动调整左栏宽度': 'Drag to resize the left column',
+    '拖动调整右栏宽度': 'Drag to resize the right column',
+    '界面语言，切换后立即生效，并记录在本机。': 'Interface language. Applies immediately and is stored locally.',
+    /* 说明浮层 */
+    'OLED 纯黑会把所有底色压到 #000 并关闭装饰光晕，适合 OLED 屏省电；跟随系统读取 prefers-color-scheme。':
+      'OLED black pushes every surface to #000 and disables the decorative glow, saving power on OLED panels. System reads prefers-color-scheme.',
+    '可以直接填十六进制色值，也可以点色板。从图片取色会按色相分桶加权提取主色。':
+      'Enter a hex value or pick a swatch. Picking from an image extracts the dominant colour by hue-bucket weighting.',
+    '关掉按钮位移、弹层淡入等过渡，适合录屏或低性能设备。':
+      'Disables transitions such as button movement and popover fades. Useful for screen recording or low-end devices.',
+    '同源代理由 serve.py 转发 8808 / 8081，绕开 CORS 与混合内容限制；直连模式需页面本身跑在 http 源下且浏览器放行跨域，通常只在调试时用。':
+      'Same-origin proxy forwards 8808 / 8081 through serve.py, bypassing CORS and mixed-content limits. Direct mode requires an http origin and permissive CORS; it is intended for debugging only.',
+    '手机与电脑需在同一局域网。地址只填 IP 或主机名，不要带 http:// 和端口。':
+      'Phone and computer must share a network. Enter only the IP or hostname, without http:// or port.',
+    '分别对 8808 与 8081 做 TCP 探测，并读取 /info 校验是不是 Local Dream。':
+      'Probes 8808 and 8081 over TCP and reads /info to confirm the target is Local Dream.',
+    '新建会话时自动填入。提示词面板里已经手动改过的内容不会被覆盖。':
+      'Filled in when a session starts. Text already edited in the prompt panel is never overwritten.',
+    '对应 show_diffusion_process。开启后每一帧中间图都要单独传一张 raw 图，弱网建议关掉。':
+      'Maps to show_diffusion_process. Every intermediate frame is transferred as a raw image; disable it on slow links.',
+    '需先在受控设备上开启对应设置，生成时才会推送中间帧；纯 CLIP 后端可能不支持。':
+      'Enable the matching option on the controlled device first, otherwise no intermediate frames are sent. Pure CLIP backends may not support it.',
+    '每 N 步回传一次预览。步幅越大流量越小，画面跳变越明显。':
+      'Sends one preview every N steps. Larger strides reduce traffic but make the preview jump more.',
+    '超出后丢弃最旧的一张。历史只存在内存里，刷新页面即清空。':
+      'The oldest entry is dropped once exceeded. History lives in memory and clears on reload.',
+    '缩略图的最小边长，实际会按列宽铺满。调大后每行能放的张数会变少。':
+      'Minimum thumbnail edge; thumbnails stretch to fill the column. Larger values mean fewer per row.',
+    '走浏览器文件系统权限，只能写进你亲手授权的那个文件夹，页面读不到里面别的东西。需 Chrome / Edge。':
+      'Uses the browser File System Access permission. Only the folder you authorise is writable, and its contents cannot be read. Requires Chrome / Edge.',
+    '在图片旁边额外写一个同名文本文件，记录提示词、负面提示词、种子、步数、CFG、采样器、模型与尺寸。':
+      'Writes a sidecar file next to each image with prompt, negative prompt, seed, steps, CFG, sampler, model and size.',
+    '可用占位符：{date} 日期、{time} 时间、{seed} 种子、{model} 模型名、{w} 宽、{h} 高、{index} 序号。不含扩展名。':
+      'Placeholders: {date}, {time}, {seed}, {model}, {w}, {h}, {index}. Extension is appended automatically.',
+    'JSON / TXT 为本项目格式，字段一致；LD 原生为 App 内导出的 _localdream_params 格式，可直接回填到 App。':
+      'JSON and TXT share the same fields. LD native is the _localdream_params structure exported by the app and can be fed back into it.',
+    '导入 .json 或 .txt 元数据文件，自动回填提示词、负面提示词、种子、步数、CFG、采样器与尺寸。也可以把文件直接拖到页面上。':
+      'Imports a .json or .txt metadata file and fills prompt, negative prompt, seed, steps, CFG, sampler and size. Files can also be dropped onto the page.',
+    '包含连接方式、地址、端口、主题、保存设置与生成偏好，不含任何作品图。':
+      'Contains connection mode, address, ports, theme, save settings and generation preferences. No images.',
+    '记录每一次请求的状态码与耗时、连接与生成事件、以及页面报错。遇到问题时导出这份文件即可定位。':
+      'Records status codes and timings for every request, connection and generation events, and page errors. Export it when reporting a problem.',
+    '放大器需先在 Local Dream 里下载（模型页 → 放大器），本页无法代为安装。':
+      'Upscalers must be downloaded inside Local Dream (Models → Upscalers). This page cannot install them.',
+    /* 动态文案 */
+    '连接中…': 'Connecting…', '检测中…': 'Checking…', '切换分辨率…': 'Switching resolution…',
+    '载入模型…': 'Loading model…', '模型就绪': 'Model ready', '连接失败': 'Connection failed',
+    '未配置地址': 'No address configured', '控制口不可达': 'Control port unreachable',
+    '检测失败': 'Check failed', '切换失败': 'Switch failed',
+    '控制口就绪 · 生成口待启动': 'Control port ready · generation port not listening',
+    '需要本地服务': 'Local server required',
+    '已连接 · ': 'Connected · ', '生成完成 · ': 'Generated in ', '已保存 ': 'Saved ',
+    '已导入 ': 'Imported ', '已应用元数据': 'Metadata applied', '已取消生成': 'Cancelled',
+    '已恢复默认配置': 'Defaults restored', '已授权写入：': 'Write access granted: ',
+    '已解除自动保存目录': 'Auto-save folder detached', '已取主色 ': 'Accent picked: ',
+    '提示词已更新': 'Prompt updated', '历史已清空': 'History cleared', '日志已导出': 'Log exported',
+    '日志已清空': 'Log cleared', '配置已导入': 'Config imported', '设置已保存': 'Settings saved',
+    '批次完成，共 ': 'Batch finished, ', '准备中…': 'Preparing…', 'VAE 编码…': 'VAE encoding…',
+    'VAE 解码…': 'VAE decoding…', '采样中…': 'Sampling…', '剩 ~': '~',
+    '生成失败：': 'Generation failed: ', '连接失败：': 'Connection failed: ',
+    '超分失败：': 'Upscale failed: ', '导入失败：': 'Import failed: ',
+    '取色失败：': 'Colour extraction failed: ', '切换失败：': 'Switch failed: ',
+    '检测失败：': 'Check failed: ', '载入失败：': 'Load failed: ',
+    '自动保存失败：': 'Auto-save failed: ', '目录授权失败：': 'Folder authorisation failed: ',
+    '先选一个模型': 'Select a model first', '提示词不能为空': 'Prompt cannot be empty',
+    '请先上传输入图': 'Upload an input image first', '画布上没有图': 'The canvas is empty',
+    '先粘贴元数据': 'Paste metadata first', '无法解析这段元数据': 'Cannot parse this metadata',
+    '只支持 .json 或 .txt 元数据文件': 'Only .json or .txt metadata files are supported',
+    '设备上没有这类放大器': 'No such upscaler on the device', '请选择图片文件': 'Choose an image file',
+    '种子已锁定，先解锁': 'Seed is locked; unlock it first',
+    '过程预览需先在受控设备上开启对应设置，否则收不到中间帧':
+      'Enable the matching option on the controlled device, otherwise no intermediate frames arrive',
+    '当前浏览器不支持目录写入，请用 Chrome / Edge': 'This browser cannot write to folders. Use Chrome or Edge',
+    '控制器': 'Controller',
+    '首步': 'First step', '总耗时': 'Total', '耗时': 'Elapsed', '下载 PNG': 'Download PNG',
+    '固种重跑': 'Re-run with seed', '预览：': 'Preview: ', '写实': 'Realistic', '动漫': 'Anime',
+    '空闲': 'Idle', '载入中': 'Loading', '运行中': 'Running', '错误': 'Error',
+    '批次 ': 'Batch ',
+    '配置': 'Config', '语言': 'Language', '中文': '中文', '连接状态': 'Status', '版本': 'Version',
+    '地址': 'Address', '可用模型': 'Available models', '当前挂载': 'Loaded model',
+    'App 版本': 'App version', '协议版本': 'Protocol', '还没有作品': 'No results yet',
+    '先选模型': 'Select a model first', '全部': 'All', '自定义': 'Custom',
+    '个模型': 'models', '张': 'images', '条': 'entries', '种分辨率': 'resolutions',
+    '适应': 'Fit', '放大器原生 ×4。': 'Native ×4 upscaler.',
+    'use_opencl · 仅 CPU 模式': 'use_opencl · CPU only',
+    'Local Dream 官方 HTTP API 参考 ·': 'Local Dream HTTP API reference ·',
+    'ld-api 客户端 ·': 'ld-api client ·', '受控模式入口与双端口 ·': 'Controlled mode and ports ·'
+  },
+
+  ru: {
+    '设置': 'Настройки', '关闭': 'Закрыть', '保存': 'Сохранить', '取消': 'Отмена', '应用': 'Применить',
+    '复制': 'Копировать', '展开': 'Развернуть', '收起': 'Свернуть', '清空': 'Очистить', '刷新': 'Обновить',
+    '恢复默认': 'Сбросить', '测试连接': 'Проверить связь', '设备': 'Устройство', '项目': 'Проект',
+    '作者': 'Автор', '运行时': 'Среда выполнения', '主题': 'Тема', '外观': 'Интерфейс',
+    '随机': 'Случайно', '解除': 'Отвязать', '类型': 'Тип', '尺寸': 'Размер', '模型': 'Модели',
+    '深色': 'Тёмная', '浅色': 'Светлая', 'OLED 纯黑': 'OLED чёрная', '跟随系统': 'Как в системе',
+    '连接': 'Подключение', '连接方式': 'Режим', '同源代理': 'Прокси того же источника', '直连手机': 'Напрямую',
+    '手机地址': 'Адрес устройства', '控制口 ctl': 'Порт управления', '生成口 gen': 'Порт генерации',
+    '连通性自检': 'Проверка связи', '尚未检测': 'Не проверено', '未连接': 'Не подключено',
+    '尚未连接': 'Не подключено', '受控模式连接状态': 'Состояние Controlled Mode',
+    '生成': 'Сгенерировать', '采样': 'Сэмплирование', '步数 steps': 'Шаги', '采样器': 'Сэмплер',
+    '批次 count': 'Пакет', '高级': 'Дополнительно', '过程预览': 'Предпросмотр процесса',
+    '预览步幅': 'Шаг предпросмотра', '默认预览步幅': 'Шаг по умолчанию',
+    '默认开启过程预览': 'Предпросмотр включён', 'OpenCL 加速': 'Ускорение OpenCL',
+    '文生图': 'Текст в изображение', '图生图': 'Изображение в изображение', '局部重绘': 'Инпейнтинг',
+    '输入图': 'Входное изображение', '点击或拖入图片': 'Нажмите или перетащите изображение',
+    '使用当前预览图': 'Использовать предпросмотр', '去噪强度 denoise': 'Сила зашумления',
+    '笔刷大小': 'Размер кисти', '清除蒙版': 'Очистить маску',
+    '在画布上涂抹需要重绘的区域（白色=重绘区）': 'Закрасьте область для перерисовки (белый — перерисовать)',
+    '宽 W': 'Ш', '高 H': 'В', '预览图大小': 'Размер миниатюр', '缩略图边长': 'Размер миниатюр',
+    '画布空着': 'Холст пуст',
+    '左侧选一个模型，写下提示词，点「生成」。扩散中间步骤会实时绘制在这里。':
+      'Выберите модель слева, введите промпт и нажмите «Сгенерировать». Шаги диффузии отображаются здесь.',
+    '适应窗口': 'По окну', '缩放比例': 'Масштаб', '把当前画面作为图生图底图': 'Взять холст как основу',
+    '用设备端放大器提升分辨率': 'Увеличить на устройстве', '重置视图（双击画布亦可）': 'Сбросить вид (или двойной клик)',
+    '展开提示词编辑器': 'Открыть редактор промпта', '拖动调整左栏宽度': 'Потяните, чтобы изменить левую колонку',
+    '拖动调整右栏宽度': 'Потяните, чтобы изменить правую колонку', '切换明暗主题': 'Переключить тему',
+    '正向提示词': 'Позитивный промпт', '负面提示词': 'Негативный промпт',
+    '正向提示词，例如：1girl, masterpiece, best quality, cinematic lighting, rain, umbrella':
+      'Позитивный промпт, например 1girl, masterpiece, best quality, cinematic lighting, rain, umbrella',
+    '提示词编辑器': 'Редактор промптов', 'Ctrl + Enter 应用': 'Ctrl + Enter — применить',
+    '默认负面提示词': 'Негативный промпт по умолчанию',
+    '历史': 'История', '历史作品': 'Сохранённые результаты', '历史设置': 'Настройки истории',
+    '保留上限': 'Хранить не более', '本地数据': 'Локальные данные', '配置占用': 'Размер конфигурации',
+    '清空历史作品': 'Очистить историю', '0 张': '0 шт.', '0 条': '0 записей',
+    '只清当前会话内存里的缩略图，不影响设备与磁盘上的任何文件。':
+      'Очищает только миниатюры в памяти. Файлы на устройстве и диске не затрагиваются.',
+    '元数据': 'Метаданные', '元数据格式': 'Формат', '应用元数据': 'Применить метаданные',
+    '导入元数据文件': 'Импорт файла метаданных', '拖入 .json / .txt 文件': 'Перетащите файл .json / .txt',
+    '命名规则': 'Шаблон имени', '导出日志': 'Экспорт журнала', '诊断日志': 'Журнал диагностики',
+    '超分': 'Апскейл', '图像超分': 'Увеличение изображения', '开始超分': 'Начать апскейл',
+    '放大倍率': 'Кратность', '重新检查放大器': 'Проверить апскейлеры',
+    '生成后自动保存': 'Автосохранение', '选择文件夹': 'Выбрать папку',
+    '未选择文件夹': 'Папка не выбрана', '同时保存提示词与参数': 'Сохранять промпт и параметры',
+    '配置备份': 'Резервная копия', '导入 JSON': 'Импорт JSON', '导出 JSON': 'Экспорт JSON',
+    '主题 · 强调色': 'Тема · Акцент', '提示词 · 预览': 'Промпт · Предпросмотр',
+    '缩略图 · 清理': 'Миниатюры · Очистка', '目录 · 元数据 · 命名': 'Папка · Метаданные · Имена',
+    '导入导出 · 历史': 'Импорт/экспорт · История', '项目 · 接口依据': 'Проект · API',
+    '模式 · 地址 · 端口': 'Режим · Адрес · Порты',
+    '源码仓库': 'Репозиторий', '接口依据': 'Источники API', '强调色': 'Акцентный цвет',
+    '从图片取色': 'Взять цвет из изображения', '减少动效': 'Меньше анимации', '已记录': 'Записано',
+    '后端状态': 'Состояние бэкенда', '连接后自动载入模型列表': 'Модели загрузятся после подключения',
+    '如果这个项目对你有帮助，欢迎到仓库点个 Star，也欢迎提 Issue 或 PR 一起完善。':
+      'Если проект полезен, поставьте Star в репозитории. Issues и pull requests приветствуются.',
+    '留空=每次随机；填数字则固定种子': 'Пусто — случайный seed; число — фиксированный',
+    '随机种子': 'Случайный seed', '锁定当前种子': 'Зафиксировать seed',
+    'PNG / JPG，需与目标尺寸一致': 'PNG / JPG, под целевой размер',
+    '粘贴元数据后点「应用」，支持 Local Dream 原生参数与 JSON / key: value':
+      'Вставьте метаданные и нажмите «Применить». Поддерживаются native-параметры Local Dream, JSON и key: value.',
+    '默认 8808，提供 /info、/models、/status、/select。': 'Порт 8808: /info, /models, /status, /select.',
+    '默认 8081，提供 /generate、/tokenize、/upscale。只有选定模型后才会监听。':
+      'Порт 8081: /generate, /tokenize, /upscale. Открывается только после загрузки модели.',
+    '界面语言，切换后立即生效，并记录在本机。': 'Язык интерфейса. Применяется сразу и сохраняется локально.',
+    'OLED 纯黑会把所有底色压到 #000 并关闭装饰光晕，适合 OLED 屏省电；跟随系统读取 prefers-color-scheme。':
+      'Режим OLED делает все поверхности #000 и отключает декоративное свечение — экономит заряд на OLED. «Как в системе» читает prefers-color-scheme.',
+    '可以直接填十六进制色值，也可以点色板。从图片取色会按色相分桶加权提取主色。':
+      'Введите hex-значение или выберите образец. Извлечение из изображения берёт доминирующий цвет по весу оттенков.',
+    '关掉按钮位移、弹层淡入等过渡，适合录屏或低性能设备。':
+      'Отключает переходы кнопок и появление панелей. Полезно для записи экрана и слабых устройств.',
+    '同源代理由 serve.py 转发 8808 / 8081，绕开 CORS 与混合内容限制；直连模式需页面本身跑在 http 源下且浏览器放行跨域，通常只在调试时用。':
+      'Прокси serve.py перенаправляет 8808 / 8081 и обходит CORS и mixed content. Прямой режим требует http-origin и разрешённого CORS; обычно только для отладки.',
+    '手机与电脑需在同一局域网。地址只填 IP 或主机名，不要带 http:// 和端口。':
+      'Телефон и компьютер должны быть в одной сети. Укажите только IP или имя хоста, без http:// и порта.',
+    '分别对 8808 与 8081 做 TCP 探测，并读取 /info 校验是不是 Local Dream。':
+      'Проверяет TCP-доступность 8808 и 8081 и читает /info, чтобы убедиться, что это Local Dream.',
+    '新建会话时自动填入。提示词面板里已经手动改过的内容不会被覆盖。':
+      'Подставляется при старте сессии. Уже изменённый текст в панели промпта не перезаписывается.',
+    '对应 show_diffusion_process。开启后每一帧中间图都要单独传一张 raw 图，弱网建议关掉。':
+      'Соответствует show_diffusion_process. Каждый кадр передаётся как raw-изображение; в слабой сети лучше отключить.',
+    '需先在受控设备上开启对应设置，生成时才会推送中间帧；纯 CLIP 后端可能不支持。':
+      'Сначала включите соответствующую опцию на устройстве, иначе промежуточные кадры не придут. Чистые CLIP-бэкенды могут не поддерживать.',
+    '每 N 步回传一次预览。步幅越大流量越小，画面跳变越明显。':
+      'Один предпросмотр каждые N шагов. Больше шаг — меньше трафик и заметнее скачки.',
+    '超出后丢弃最旧的一张。历史只存在内存里，刷新页面即清空。':
+      'Самая старая запись удаляется. История хранится в памяти и очищается при перезагрузке.',
+    '缩略图的最小边长，实际会按列宽铺满。调大后每行能放的张数会变少。':
+      'Минимальная сторона миниатюры; фактически растягивается по колонке. Больше значение — меньше в ряд.',
+    '走浏览器文件系统权限，只能写进你亲手授权的那个文件夹，页面读不到里面别的东西。需 Chrome / Edge。':
+      'Использует File System Access. Запись только в выбранную папку, содержимое не читается. Нужен Chrome / Edge.',
+    '在图片旁边额外写一个同名文本文件，记录提示词、负面提示词、种子、步数、CFG、采样器、模型与尺寸。':
+      'Рядом с изображением пишется файл с промптом, негативным промптом, seed, шагами, CFG, сэмплером, моделью и размером.',
+    '可用占位符：{date} 日期、{time} 时间、{seed} 种子、{model} 模型名、{w} 宽、{h} 高、{index} 序号。不含扩展名。':
+      'Плейсхолдеры: {date}, {time}, {seed}, {model}, {w}, {h}, {index}. Расширение добавляется автоматически.',
+    'JSON / TXT 为本项目格式，字段一致；LD 原生为 App 内导出的 _localdream_params 格式，可直接回填到 App。':
+      'JSON и TXT используют одни поля. LD native — структура _localdream_params из приложения, её можно вернуть обратно.',
+    '导入 .json 或 .txt 元数据文件，自动回填提示词、负面提示词、种子、步数、CFG、采样器与尺寸。也可以把文件直接拖到页面上。':
+      'Импорт .json или .txt: заполняет промпт, негативный промпт, seed, шаги, CFG, сэмплер и размер. Файл можно перетащить на страницу.',
+    '包含连接方式、地址、端口、主题、保存设置与生成偏好，不含任何作品图。':
+      'Содержит режим подключения, адрес, порты, тему, настройки сохранения и генерации. Без изображений.',
+    '记录每一次请求的状态码与耗时、连接与生成事件、以及页面报错。遇到问题时导出这份文件即可定位。':
+      'Записывает коды и время запросов, события подключения и генерации, ошибки страницы. Экспортируйте при проблемах.',
+    '放大器需先在 Local Dream 里下载（模型页 → 放大器），本页无法代为安装。':
+      'Апскейлеры нужно скачать в Local Dream (Модели → Апскейлеры). Со страницы установить нельзя.',
+    '连接中…': 'Подключение…', '检测中…': 'Проверка…', '切换分辨率…': 'Смена разрешения…',
+    '载入模型…': 'Загрузка модели…', '模型就绪': 'Модель готова', '连接失败': 'Ошибка подключения',
+    '未配置地址': 'Адрес не задан', '控制口不可达': 'Порт управления недоступен',
+    '检测失败': 'Проверка не удалась', '切换失败': 'Смена не удалась',
+    '控制口就绪 · 生成口待启动': 'Порт управления готов · порт генерации не запущен',
+    '需要本地服务': 'Требуется локальный сервер',
+    '已连接 · ': 'Подключено · ', '生成完成 · ': 'Готово за ', '已保存 ': 'Сохранено ',
+    '已导入 ': 'Импортировано ', '已应用元数据': 'Метаданные применены', '已取消生成': 'Отменено',
+    '已恢复默认配置': 'Настройки сброшены', '已授权写入：': 'Доступ на запись: ',
+    '已解除自动保存目录': 'Папка автосохранения отвязана', '已取主色 ': 'Акцент: ',
+    '提示词已更新': 'Промпт обновлён', '历史已清空': 'История очищена', '日志已导出': 'Журнал экспортирован',
+    '日志已清空': 'Журнал очищен', '配置已导入': 'Конфигурация импортирована', '设置已保存': 'Настройки сохранены',
+    '批次完成，共 ': 'Пакет завершён: ', '准备中…': 'Подготовка…', 'VAE 编码…': 'VAE-кодирование…',
+    'VAE 解码…': 'VAE-декодирование…', '采样中…': 'Сэмплирование…',
+    '生成失败：': 'Ошибка генерации: ', '连接失败：': 'Ошибка подключения: ',
+    '超分失败：': 'Ошибка апскейла: ', '导入失败：': 'Ошибка импорта: ',
+    '取色失败：': 'Не удалось извлечь цвет: ', '切换失败：': 'Смена не удалась: ',
+    '检测失败：': 'Проверка не удалась: ', '载入失败：': 'Загрузка не удалась: ',
+    '自动保存失败：': 'Ошибка автосохранения: ', '目录授权失败：': 'Ошибка доступа к папке: ',
+    '先选一个模型': 'Сначала выберите модель', '提示词不能为空': 'Промпт не может быть пустым',
+    '请先上传输入图': 'Сначала загрузите входное изображение', '画布上没有图': 'На холсте нет изображения',
+    '先粘贴元数据': 'Сначала вставьте метаданные', '无法解析这段元数据': 'Не удалось разобрать метаданные',
+    '只支持 .json 或 .txt 元数据文件': 'Поддерживаются только файлы .json или .txt',
+    '设备上没有这类放大器': 'На устройстве нет такого апскейлера', '请选择图片文件': 'Выберите файл изображения',
+    '种子已锁定，先解锁': 'Seed заблокирован — снимите блокировку',
+    '过程预览需先在受控设备上开启对应设置，否则收不到中间帧':
+      'Включите опцию на устройстве, иначе промежуточные кадры не придут',
+    '当前浏览器不支持目录写入，请用 Chrome / Edge': 'Браузер не поддерживает запись в папки. Используйте Chrome или Edge',
+    '首步': 'Первый шаг', '总耗时': 'Всего', '耗时': 'Время', '下载 PNG': 'Скачать PNG',
+    '固种重跑': 'Повтор с seed', '预览：': 'Предпросмотр: ', '写实': 'Реализм', '动漫': 'Аниме',
+    '空闲': 'Простой', '载入中': 'Загрузка', '运行中': 'Работает', '错误': 'Ошибка',
+    '批次 ': 'Пакет '
+  }
+};
+
+/* 追加词条（与上方字典合并，避免长字面量难以维护） */
+Object.assign(I18N.en, {
+  '关于': 'About', '已连接': 'Connected', '配置': 'Config', '语言': 'Language',
+  '连接状态': 'Status', '版本': 'Version', '地址': 'Address',
+  '可用模型': 'Available models', '当前挂载': 'Loaded model',
+  'App 版本': 'App version', '协议版本': 'Protocol',
+  '还没有作品': 'No results yet', '先选模型': 'Select a model first',
+  '全部': 'All', '自定义': 'Custom', '个模型': 'models', '张': 'images', '条': 'entries',
+  '种分辨率': 'resolutions', '适应': 'Fit', '预览：': 'Preview: ', '当前目录：': 'Current folder: ',
+  '放大器原生 ×4。': 'Native ×4 upscaler.', '再次点击确认': 'Click again to confirm',
+  'use_opencl · 仅 CPU 模式': 'use_opencl · CPU only', 'LD 原生': 'LD native',
+  '设备上没有动漫类放大器': 'No anime upscaler on the device',
+  '设备上没有写实类放大器': 'No realistic upscaler on the device',
+  '界面语言，切换后立即生效，并记录在本机。':
+    'Interface language. Applies immediately and is stored locally.',
+  '点「刷新」或「测试连接」重试': 'Press Refresh or Test connection to retry',
+  '尚未填写手机地址': 'Device address is empty',
+  '未检测到任何放大器。请先在 Local Dream 内下载（模型页 → 放大器）':
+    'No upscaler detected. Download one inside Local Dream (Models → Upscalers).',
+  'Local Dream 官方 HTTP API 参考 ·': 'Local Dream HTTP API reference ·',
+  'ld-api 客户端 ·': 'ld-api client ·', '受控模式入口与双端口 ·': 'Controlled mode and ports ·'
+});
+
+Object.assign(I18N.ru, {
+  '关于': 'О программе', '已连接': 'Подключено', '配置': 'Конфигурация', '语言': 'Язык',
+  '连接状态': 'Состояние', '版本': 'Версия', '地址': 'Адрес',
+  '可用模型': 'Доступные модели', '当前挂载': 'Загруженная модель',
+  'App 版本': 'Версия App', '协议版本': 'Протокол',
+  '还没有作品': 'Пока нет результатов', '先选模型': 'Сначала выберите модель',
+  '全部': 'Все', '自定义': 'Свои', '个模型': 'моделей', '张': 'шт.', '条': 'записей',
+  '种分辨率': 'разрешений', '适应': 'По окну', '预览：': 'Предпросмотр: ',
+  '当前目录：': 'Текущая папка: ',
+  '放大器原生 ×4。': 'Апскейлер ×4 без изменений.',
+  '再次点击确认': 'Нажмите ещё раз для подтверждения',
+  'use_opencl · 仅 CPU 模式': 'use_opencl · только CPU', 'LD 原生': 'LD native',
+  '设备上没有动漫类放大器': 'На устройстве нет аниме-апскейлера',
+  '设备上没有写实类放大器': 'На устройстве нет реалистичного апскейлера',
+  '界面语言，切换后立即生效，并记录在本机。':
+    'Язык интерфейса. Применяется сразу и сохраняется локально.',
+  '点「刷新」或「测试连接」重试': 'Нажмите «Обновить» или «Проверить связь»',
+  '尚未填写手机地址': 'Адрес устройства не указан',
+  '未检测到任何放大器。请先在 Local Dream 内下载（模型页 → 放大器）':
+    'Апскейлеры не найдены. Скачайте их в Local Dream (Модели → Апскейлеры).',
+  'Local Dream 官方 HTTP API 参考 ·': 'Справочник HTTP API Local Dream ·',
+  'ld-api 客户端 ·': 'Клиент ld-api ·', '受控模式入口与双端口 ·': 'Controlled Mode и порты ·'
+});
+
+
+Object.assign(I18N.en, {
+  '动漫图像生成模型': 'Anime image generation model',
+  '自定义模型': 'Custom model',
+  '融合了 DMD2 LoRA': 'Merged with DMD2 LoRA',
+  '6B DiT，8 步。': '6B DiT, 8 steps.'
+});
+
+Object.assign(I18N.ru, {
+  '动漫图像生成模型': 'Модель для аниме-генерации',
+  '自定义模型': 'Пользовательская модель',
+  '融合了 DMD2 LoRA': 'С добавлением DMD2 LoRA',
+  '6B DiT，8 步。': '6B DiT, 8 шагов.'
+});
+
+const FILE_WARN_HTML = {
+  zh: '<b>页面是直接打开的本地文件（file://）</b>，同源代理不可用——<code>/p/8808</code> 这类接口路径在文件协议下不存在，请求会直接失败。请改用命令行启动：<code>python serve.py --host 手机IP</code>，再访问 <code>http://127.0.0.1:8777</code>。',
+  en: '<b>This page was opened as a local file (file://)</b>, so the same-origin proxy is unavailable — paths like <code>/p/8808</code> do not exist under the file protocol and requests fail immediately. Start it from a shell instead: <code>python serve.py --host &lt;phone IP&gt;</code>, then open <code>http://127.0.0.1:8777</code>.',
+  ru: '<b>Страница открыта как локальный файл (file://)</b>, поэтому прокси недоступен — пути вида <code>/p/8808</code> в файловом протоколе не существуют, запросы сразу падают. Запустите из терминала: <code>python serve.py --host &lt;IP телефона&gt;</code>, затем откройте <code>http://127.0.0.1:8777</code>.'
+};
+
+function langLocale(){ return LANG_LOCALE[LANG] || 'zh-CN'; }
+
+/** 精确匹配，其次按最长前缀匹配，用于「已保存 xxx」这类拼接文案 */
+function tr(str){
+  if (LANG === 'zh' || str == null) return str;
+  const d = I18N[LANG];
+  if (!d) return str;
+  const s = String(str);
+  if (d[s] != null) return d[s];
+  let best = null, bestLen = 0;
+  for (const k in d){
+    if (k.length <= bestLen || k.length >= s.length) continue;
+    if (!/[ ：:·…\-]$/.test(k)) continue;   // 仅「已保存 」「生成失败：」这类明确前缀
+    if (s.startsWith(k)){ best = k; bestLen = k.length; }
+  }
+  return best ? d[best] + s.slice(bestLen) : str;
+}
+
+function localizeAttrs(root){
+  const d = LANG === 'zh' ? null : I18N[LANG];
+  (root || document).querySelectorAll('[placeholder],[title],[data-tip]').forEach(el => {
+    ['placeholder', 'title', 'data-tip'].forEach(attr => {
+      if (!el.hasAttribute(attr)) return;
+      const cacheKey = '__zh_' + attr;
+      if (el[cacheKey] == null) el[cacheKey] = el.getAttribute(attr);
+      const raw = el[cacheKey];
+      if (!raw) return;
+      if (!d){ el.setAttribute(attr, raw); return; }
+      const key = raw.trim();
+      el.setAttribute(attr, d[key] != null ? raw.replace(key, d[key]) : raw);
+    });
+  });
+}
+
+function applyI18n(root){
+  const d = LANG === 'zh' ? null : I18N[LANG];
+  const body = root || document.body;
+  const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT, {
+    acceptNode(n){
+      const p = n.parentElement;
+      if (!p) return NodeFilter.FILTER_REJECT;
+      const tag = p.tagName;
+      if (tag === 'SCRIPT' || tag === 'STYLE') return NodeFilter.FILTER_REJECT;
+      if (!n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  nodes.forEach(n => {
+    if (n.__zh == null) n.__zh = n.nodeValue;
+    const raw = n.__zh;
+    const key = raw.trim();
+    if (!key) return;
+    if (!d){ n.nodeValue = raw; return; }
+    const out = tr(key);
+    n.nodeValue = out !== key ? raw.replace(key, out) : raw;
+  });
+  localizeAttrs(body);
+  const fw = document.getElementById('fileWarnBody');
+  if (fw) fw.innerHTML = FILE_WARN_HTML[LANG] || FILE_WARN_HTML.zh;
+}
+
+const L = el => applyI18n(el || document.body);
+
+function currentLang(){
+  const saved = CFG.lang;
+  if (LANG_LIST.includes(saved)) return saved;
+  const nav = (navigator.language || 'zh').toLowerCase();
+  if (nav.startsWith('ru')) return 'ru';
+  if (nav.startsWith('en')) return 'en';
+  return 'zh';
+}
+
+/** 动态区域会重建 DOM，必须在重建之后统一翻译 */
+function refreshLang(){
+  try{
+    if (typeof renderModels === 'function') renderModels();
+    if (typeof renderHistory === 'function') renderHistory();
+    if (typeof renderStatus === 'function') renderStatus();
+    if (typeof renderSizeControls === 'function') renderSizeControls();
+    if (typeof renderConnStatus === 'function') renderConnStatus();
+    if (typeof renderAbout === 'function') renderAbout();
+    if (typeof renderUpChips === 'function') renderUpChips();
+    if (typeof updateCfgWarn === 'function') updateCfgWarn();
+    if (typeof updateNamePreview === 'function') updateNamePreview();
+    if (typeof renderSaveState === 'function') renderSaveState();
+    if (typeof updatePmCounts === 'function') updatePmCounts();
+    if (typeof applyZoom === 'function') applyZoom();
+    const lc = document.getElementById('logCount');
+    if (lc) lc.textContent = LOG.length + ' ' + tr('条');
+  }catch(e){ /* 启动早期部分元素尚未就绪 */ }
+  applyI18n(document.body);
+  const sel = document.getElementById('cfgLang');
+  if (sel) sel.value = LANG;
+}
+
+function setLang(lang, persist){
+  LANG = LANG_LIST.includes(lang) ? lang : 'zh';
+  if (persist){ CFG.lang = LANG; saveCfg(); }
+  document.documentElement.lang = LANG === 'zh' ? 'zh-CN' : LANG;
+  document.documentElement.dataset.lang = LANG;
+  refreshLang();
+}
 
 /* ═════════════ 诊断日志 ═════════════ */
 const LOG = [];
@@ -1704,7 +2207,7 @@ function log(level, msg, data){
   LOG.push(e);
   if (LOG.length > LOG_MAX) LOG.shift();
   const badge = document.getElementById('logCount');
-  if (badge) badge.textContent = LOG.length + ' 条';
+  if (badge) badge.textContent = LOG.length + ' ' + tr('条');
 }
 
 /** 给所有 fetch 挂上记录，最小侵入，能抓到真实的状态码与网络错误 */
@@ -1804,7 +2307,7 @@ function setConn(state, text){
   const dot = $('#connDot');
   if (dot) dot.className = 'dot ' + state;
   const t = $('#connText');
-  if (t) t.textContent = text;
+  if (t) t.textContent = tr(text);
   // 设置面板开着时，状态条同步刷新（否则要重开面板才更新）
   const modal = $('#settingsModal');
   if (modal && modal.classList.contains('on')){
@@ -1855,7 +2358,7 @@ const IS_FILE = location.protocol === 'file:';
 function diagOut(msg, cls){
   const el = $('#diagOut');
   if (!el) return;
-  el.textContent = msg;
+  el.textContent = tr(msg);
   el.className = 'shelp' + (cls ? ' ' + cls : '');
 }
 
@@ -1998,7 +2501,7 @@ function renderCatChips(){
     .concat(CATS.filter(c => counts[c.key]).map(c => ({ key: c.key, label: c.label, n: counts[c.key] })));
   if (!items.some(i => i.key === S.cat)) S.cat = 'all';
   box.innerHTML = items.map(it =>
-    `<span class="chip${S.cat === it.key ? ' on' : ''}" data-cat="${it.key}">${it.label}<span style="opacity:.5;margin-left:4px">${it.n}</span></span>`
+    `<span class="chip${S.cat === it.key ? ' on' : ''}" data-cat="${it.key}">${tr(it.label)}<span style="opacity:.5;margin-left:4px">${it.n}</span></span>`
   ).join('');
   box.querySelectorAll('[data-cat]').forEach(c => c.addEventListener('click', () => {
     S.cat = c.dataset.cat;
@@ -2013,7 +2516,7 @@ function modelCardHtml(m){
   if (m.is_anima) tags.push('<span class="tag">Anima</span>');
   if (m.dit_kind) tags.push(`<span class="tag">${escapeHtml(m.dit_kind)}</span>`);
   if (m.is_custom) tags.push('<span class="tag">自定义</span>');
-  if (m.resolutions && m.resolutions.length) tags.push(`<span class="tag">${m.resolutions.length} 分辨率</span>`);
+  if (m.resolutions && m.resolutions.length) tags.push(`<span class="tag">${m.resolutions.length} ${tr('种分辨率')}</span>`);
   const active = S.model && S.model.id === m.id;
   const busy = S.status && S.status.state === 'starting' && S.status.serving_model_id === m.id;
   return `<div class="model-card${active ? ' active' : ''}${busy ? ' loading' : ''}" data-id="${escapeHtml(m.id)}">
@@ -2028,7 +2531,7 @@ function modelCardHtml(m){
 
 function renderModels(){
   const box = $('#modelList');
-  $('#modelCount').textContent = S.models.length ? S.models.length + ' 个' : '';
+  $('#modelCount').textContent = S.models.length ? S.models.length + ' ' + tr('个模型') : '';
   renderCatChips();
   if (!S.models.length){
     box.innerHTML = '<div class="empty-line">设备上没有可用模型</div>';
@@ -2109,7 +2612,7 @@ function renderSizeControls(){
   $('#sizeWarn').style.display = 'none';
   chips.innerHTML = '';
 
-  if (!m){ chips.innerHTML = '<span class="empty-line" style="padding:0">先选模型</span>'; whWrap.style.display = 'none'; return; }
+  if (!m){ chips.innerHTML = `<span class="empty-line" style="padding:0">${tr('先选模型')}</span>`; whWrap.style.display = 'none'; return; }
 
   // SDXL：尺寸完全由 aspect_ratio 决定，实测传 width/height 会被忽略
   if (m.is_sdxl){
@@ -2279,7 +2782,8 @@ function renderStatus(){
   const box = $('#statusBox');
   if (!st){ box.textContent = '—'; return; }
   const map = { idle: ['空闲', ''], starting: ['载入中', 'wait'], running: ['运行中', 'on'], error: ['错误', 'off'] };
-  const [label, cls] = map[st.state] || [st.state, ''];
+  const [rawLabel, cls] = map[st.state] || [st.state, ''];
+  const label = tr(rawLabel);
   box.innerHTML = `
     <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--text-dim)">
       <i class="dot ${cls}"></i><b style="color:var(--text);font-weight:560">${label}</b>
@@ -2396,7 +2900,7 @@ function applyZoom(){
   const sel = $('#zoomSel');
   if (sel){
     const fitOpt = sel.querySelector('option[value="fit"]');
-    if (fitOpt) fitOpt.textContent = '适应 ' + Math.round(Z.fit * 100) + '%';
+    if (fitOpt) fitOpt.textContent = tr('适应') + ' ' + Math.round(Z.fit * 100) + '%';
     if (Z.mode === 'fit'){
       sel.value = 'fit';
     } else {
@@ -2572,7 +3076,7 @@ function scheduleBatch(){
     S.batchDone++;
     setTimeout(() => { if (!S.generating) doGenerate(true); }, 350);
   } else {
-    if (S.batchTotal > 1) toast(`批次完成，共 ${S.batchTotal} 张`, 'ok');
+    if (S.batchTotal > 1) toast(`${tr('批次完成，共 ')}${S.batchTotal} ${LANG === 'zh' ? '张' : ''}`.trim(), 'ok');
     S.batchTotal = 0;
     S.batchDone = 0;
     // 批次全部结束后再切回图生图：蒙版覆盖层会干扰新图预览，且中途切页会让后续张数变成图生图
@@ -2686,6 +3190,7 @@ function updateCfgWarn(){
   el.textContent = v <= 0
     ? 'CFG 归零等于彻底放开，负面提示词完全失效，画面大概率抽象到认不出来。'
     : 'CFG 小于 1 时负面提示词基本不生效，出图容易跑偏——不过偶尔会得到挺有意思的东西，实在好奇可以试试。';
+  el.textContent = tr(el.textContent);
 }
 
 function updateProgress(){
@@ -2698,17 +3203,17 @@ function updateProgress(){
   eta.style.display = '';
 
   if (S.step <= 0){
-    eta.textContent = S.startPhase || '准备中…';
+    eta.textContent = tr(S.startPhase || '准备中…');
     return;
   }
   if (S.step >= total){
-    eta.textContent = 'VAE 解码…';
+    eta.textContent = tr('VAE 解码…');
     return;
   }
   // 用首步耗时作为步长基准，比「总耗时 ÷ 步数」稳定，避免开局跳成 0 秒
   const per = S.firstStepMs > 0 ? S.firstStepMs : (performance.now() - S.tStart) / S.step;
   const remain = per * (total - S.step);
-  eta.textContent = remain >= 1000 ? `剩 ~${(remain / 1000).toFixed(1)}s` : '采样中…';
+  eta.textContent = remain >= 1000 ? `${tr('剩 ~')}${(remain / 1000).toFixed(1)}s` : tr('采样中…');
 }
 
 function finishGeneration(final, body){
@@ -2735,6 +3240,7 @@ function finishGeneration(final, body){
 
   showMetaPrompt(body.prompt || '');
   bindCopyables($('#resultMeta'));
+  L($('#resultMeta'));
   const dataUrl = stage.toDataURL('image/png');
   addHistory(dataUrl, { seed, prompt: body.prompt, w: final.width, h: final.height });
   stage.toBlob(b => autoSaveImage(b, {
@@ -2779,8 +3285,8 @@ function addHistory(dataUrl, meta){
 }
 function renderHistory(){
   const box = $('#history');
-  $('#histCount').textContent = S.history.length ? S.history.length + ' 张' : '';
-  if (!S.history.length){ box.innerHTML = '<div class="empty-line" style="grid-column:1/-1;padding:8px 0">还没有作品</div>'; return; }
+  $('#histCount').textContent = S.history.length ? S.history.length + ' ' + tr('张') : '';
+  if (!S.history.length){ box.innerHTML = `<div class="empty-line" style="grid-column:1/-1;padding:8px 0">${tr('还没有作品')}</div>`; return; }
   box.innerHTML = S.history.map((it, i) =>
     `<div class="hist-item" data-i="${i}" title="seed ${it.meta.seed}"><img src="${it.dataUrl}" alt=""></div>`
   ).join('');
@@ -2802,6 +3308,7 @@ function renderHistory(){
           `<span style="margin-left:auto"><a href="#" id="lnkHistDl" style="color:var(--accent);text-decoration:none">下载 PNG</a></span>`;
         showMetaPrompt(it.meta.prompt || '');
         bindCopyables($('#resultMeta'));
+        L($('#resultMeta'));
         const lnk = $('#lnkHistDl');
         if (lnk) lnk.onclick = e => {
           e.preventDefault();
@@ -2901,7 +3408,8 @@ function showMetaPrompt(text){
   box.style.display = '';
   box.classList.remove('open');
   $('#metaPromptText').textContent = text;
-  $('#btnMetaExpand').textContent = '展开';
+  $('#btnMetaExpand').textContent = tr('展开');
+  L($('#metaPrompt'));
 }
 
 /** 给结果区内带 data-copy 的元素挂复制 */
@@ -3289,8 +3797,8 @@ function renderUpChips(){
   const kc = $('#upKindChips');
   if (kc){
     kc.innerHTML =
-      `<span class="chip${UP.kind === 'anime' ? ' on' : ''}${hasAnime ? '' : ' off'}" data-kind="anime"${hasAnime ? '' : ' title="设备上没有动漫类放大器"'}>动漫</span>` +
-      `<span class="chip${UP.kind === 'real' ? ' on' : ''}${hasReal ? '' : ' off'}" data-kind="real"${hasReal ? '' : ' title="设备上没有写实类放大器"'}>写实</span>`;
+      `<span class="chip${UP.kind === 'anime' ? ' on' : ''}${hasAnime ? '' : ' off'}" data-kind="anime"${hasAnime ? '' : ' title="设备上没有动漫类放大器"'}>${tr('动漫')}</span>` +
+      `<span class="chip${UP.kind === 'real' ? ' on' : ''}${hasReal ? '' : ' off'}" data-kind="real"${hasReal ? '' : ' title="设备上没有写实类放大器"'}>${tr('写实')}</span>`;
     kc.querySelectorAll('[data-kind]').forEach(c => c.addEventListener('click', () => {
       if (c.classList.contains('off')){ toast('设备上没有这类放大器', 'warn'); return; }
       UP.kind = c.dataset.kind;
@@ -3316,7 +3824,7 @@ function renderUpChips(){
   const note = $('#upNote');
   if (note){
     note.textContent = up
-      ? (UP.scale === 4 ? '放大器原生 ×4。' : `放大器原生 ×4，${UP.scale}× 由浏览器降采样得到。`)
+      ? (UP.scale === 4 ? tr('放大器原生 ×4。') : `${tr('放大器原生 ×4。')} ${UP.scale}× ↓`)
       : '';
   }
   const tip = $('#upTip');
@@ -3324,7 +3832,7 @@ function renderUpChips(){
     if (!(S.upscalers || []).length){
       tip.style.display = '';
       tip.className = 'pop-tip warn';
-      tip.textContent = '未检测到任何放大器。请先在 Local Dream 内下载（模型页 → 放大器），再点下方「重新检查」。';
+      tip.textContent = tr('未检测到任何放大器。请先在 Local Dream 内下载（模型页 → 放大器）');
     } else if (!up){
       tip.style.display = '';
       tip.className = 'pop-tip warn';
@@ -3338,7 +3846,7 @@ function renderUpChips(){
     run.disabled = !up || UP.running;
     run.classList.toggle('arm', !!UP.confirmPending);
     if (!UP.running){
-      run.textContent = UP.confirmPending ? `再次点击确认 ${UP.pendingSize}` : '开始超分';
+      run.textContent = UP.confirmPending ? `${tr('再次点击确认')} ${UP.pendingSize}` : tr('开始超分');
     }
   }
 }
@@ -3450,7 +3958,7 @@ async function runUpscale(){
     $('#resultMeta').innerHTML =
       `<span>超分 <b>${w}×${h} → ${tw}×${th}</b></span>` +
       `<span>耗时 <b>${fmtS(dt)}</b></span>` +
-      `<span style="color:var(--violet)">${UP.kind === 'anime' ? '动漫' : '写实'} ×${UP.scale}</span>` +
+      `<span style="color:var(--violet)">${tr(UP.kind === 'anime' ? '动漫' : '写实')} ×${UP.scale}</span>` +
       `<span style="margin-left:auto"><a href="#" id="lnkDlUp" style="color:var(--accent);text-decoration:none">下载 PNG</a></span>`;
 
     const dataUrl = stage.toDataURL('image/png');
@@ -3736,6 +4244,8 @@ function initControls(){
     await diagnose();
   });
 
+  $('#cfgLang').addEventListener('change', e => { setLang(e.target.value, true); });
+
   // 历史区齿轮：直接跳到设置的历史分区
   $('#btnHistSettings').addEventListener('click', () => openSettings('hist'));
   $('#cfgHistSize').addEventListener('input', e => {
@@ -3854,7 +4364,7 @@ function initControls(){
   $('#btnExportLog').addEventListener('click', exportLog);
   $('#btnClearLog').addEventListener('click', () => {
     LOG.length = 0;
-    const el = $('#logCount'); if (el) el.textContent = '0 条';
+    const el = $('#logCount'); if (el) el.textContent = '0 ' + tr('条');
     toast('日志已清空');
   });
 
@@ -3894,6 +4404,7 @@ function fillSettings(){
   $$('#segMetaFmt button').forEach(b => b.classList.toggle('on', b.dataset.fmt === (CFG.metaFmt || 'json')));
   $('#cfgNamePattern').value = CFG.namePattern || '{date}_{time}_{seed}';
   updateNamePreview();
+  $('#cfgLang').value = LANG;
   $('#cfgHistSize').value = CFG.histSize || 88;
   $('#cfgHistSizeVal').textContent = CFG.histSize || 88;
   setRangeFill($('#cfgHistSize'));
@@ -3912,7 +4423,7 @@ function renderDataStats(){
   let bytes = 0;
   for (const h of S.history) bytes += Math.round((h.dataUrl || '').length * 3 / 4);
   const mb = bytes / 1048576;
-  $('#statHist').textContent = n + ' 张' + (n ? ` · 约 ${mb < 1 ? (bytes / 1024).toFixed(0) + ' KB' : mb.toFixed(1) + ' MB'}` : '');
+  $('#statHist').textContent = n + ' ' + tr('张') + (n ? ` · ${mb < 1 ? (bytes / 1024).toFixed(0) + ' KB' : mb.toFixed(1) + ' MB'}` : '');
   let cfgBytes = 0;
   try{ cfgBytes = new Blob([localStorage.getItem(CFG_KEY) || '']).size; }catch{}
   $('#statCfg').textContent = cfgBytes ? (cfgBytes / 1024).toFixed(1) + ' KB' : '—';
@@ -3969,10 +4480,10 @@ function renderConnStatus(){
   const i = S.info;
   const cls = i ? 'on' : 'off';
   $('#setDot').className = 'dot ' + cls;
-  $('#setConnTitle').textContent = i ? '已连接' : '未连接';
+  $('#setConnTitle').textContent = tr(i ? '已连接' : '未连接');
   $('#setConnSub').textContent = i
-    ? `${i.device || '设备'} · ${CFG.host || '—'}:${CFG.ctlPort}`
-    : (CFG.host ? '点「刷新」或「测试连接」重试' : '尚未填写手机地址');
+    ? `${i.device || tr('设备')} · ${CFG.host || '—'}:${CFG.ctlPort}`
+    : tr(CFG.host ? '点「刷新」或「测试连接」重试' : '尚未填写手机地址');
 }
 
 function renderAbout(){
@@ -3990,7 +4501,7 @@ function renderAbout(){
     ['后端状态', S.status ? (stateMap[S.status.state] || S.status.state) : '—']
   ];
   $('#aboutInfo').innerHTML = rows.map(([k, v]) =>
-    `<div class="about-row"><span>${escapeHtml(k)}</span><b>${escapeHtml(String(v))}</b></div>`).join('');
+    `<div class="about-row"><span>${escapeHtml(tr(k))}</span><b>${escapeHtml(String(v))}</b></div>`).join('');
   $('#snVersion').textContent = i ? `v${i.version}` : '未连接';
 }
 
@@ -4077,6 +4588,7 @@ function escapeHtml(s){
   installFetchLog();
   applyLayout();
   applyHistSize();
+  setLang(currentLang(), false);
   applyTheme();
   log('info', '页面启动', { url: location.href, mode: CFG.mode, ua: navigator.userAgent.slice(0, 80) });
   if (IS_FILE){
